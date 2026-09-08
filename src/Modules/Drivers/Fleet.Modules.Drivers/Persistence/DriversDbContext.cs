@@ -1,3 +1,4 @@
+using Fleet.Common.Messaging.Outbox;
 using Fleet.Common.Persistence;
 using Fleet.Modules.Drivers.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -16,9 +17,19 @@ internal sealed class DriversDbContext(DbContextOptions<DriversDbContext> option
 
     public DbSet<Certificate> Certificates => Set<Certificate>();
 
+    /// <summary>
+    /// This module's outbox, in this module's schema.
+    /// </summary>
+    /// <remarks>
+    /// It is here, rather than in some shared table, so that an event and the state change that
+    /// caused it commit together. <c>SaveChangesAsync</c> on this context writes both or neither.
+    /// </remarks>
+    public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(DriversDbContext).Assembly);
+        modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
     }
 }

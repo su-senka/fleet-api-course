@@ -173,6 +173,8 @@ screens are looking at the same rows.
 | Bookings | 3,002 | Across 18 months: ~2,500 completed, ~250 confirmed, ~250 cancelled |
 | Work orders | 400 | Every status; 200 already carry a supplier order id |
 | Part order lines | 796 | On 180 of the 250 vehicles - the other 70 have never been in the workshop |
+| Notifications | 0 | Deliberately. They appear when the expiry scanner runs - see below |
+| Report jobs | 0 | Deliberately. One exists because somebody asked for it |
 
 Among the drivers, four hold no licence at all, five hold one that has expired, and six hold one
 expiring within the next 30 days. Those fifteen are the reason the eligibility rule is worth
@@ -245,6 +247,63 @@ changes nothing.
 Maintenance is the only module that returns `Unavailable`, which makes it the place to think hard
 about the difference between "you cannot do that" (409) and "try again shortly" (503) - and about
 which of the two deserves a `Retry-After` header.
+
+## Watching an event travel between modules
+
+Nothing seeds the `notifications` table. Its rows appear because Drivers announced something, which
+is the one interesting thing about that module, and seeding it by hand would hide it. Start the API
+and wait a few seconds:
+
+```bash
+dotnet run --project src/Fleet.Api
+docker compose exec postgres psql -U fleet -d fleet -c "SELECT message FROM notifications.notifications LIMIT 5;"
+```
+
+What happened in between:
+
+1. `CertificateExpiryScanner` (a hosted service in Drivers) finds certificates expiring within 30
+   days, marks each one as warned, and enqueues a `CertificateExpiringSoon` into the **`drivers.outbox`**
+   table. Both writes go in one `SaveChangesAsync`.
+2. `OutboxProcessor` (in `Fleet.Common`) sweeps every module's outbox every five seconds and
+   publishes what it finds through `IEventBus`.
+3. `CertificateExpiringSoonHandler` in Notifications writes a row and logs a line.
+
+Drivers has never heard of Notifications. Delete the Notifications module and Drivers carries on
+unchanged, still announcing to nobody. That is the point of the arrangement, and the reason the
+dependency arrow runs from the subscriber to the publisher's `.Contracts` and never the other way.
+
+The outbox is what makes step 1 safe. Publishing straight to the bus would be simpler and wrong: a
+crash between the commit and the publish loses the event with no trace. Delivery is **at least
+once**, so the handler checks before it inserts - and `docker compose restart` mid-sweep is a
+perfectly good way to see why it has to.
+
+## Reports, and why 202 exists
+
+Generating a utilisation CSV takes about twenty seconds. It does not have to - the arithmetic over
+250 vehicles takes milliseconds - but `Reporting:SimulatedDuration` makes it, because a report that
+returned instantly would make the whole asynchronous-job pattern look like ceremony.
+
+```
+POST /reports        -> 202 Accepted, Location: /reports/{id}    (job is Queued)
+GET  /reports/{id}   -> 200, status Queued | Running | Completed | Failed
+GET  /reports/{id}/content -> the CSV, once it exists
+```
+
+`IReportService.EnqueueAsync` returns in milliseconds with a job id, and `ReportJobProcessor` does
+the work in the background and puts the CSV in Azurite. Asking for the file before it is ready
+returns `Conflict`, not `NotFound` - the job is real, it simply has nothing to give yet, and telling
+those two apart is how a client knows whether to keep polling.
+
+## Idempotency
+
+`IIdempotencyStore` is finished; the middleware that uses it is written once in `Fleet.Api` as the
+worked example. The store's one job is to be atomic, and it is, because the client's key is the
+primary key of `shared.idempotency_keys` and claiming it is a single
+`INSERT ... ON CONFLICT DO NOTHING`. `IdempotencyStoreTests` fires twenty simultaneous claims at
+the same key and asserts that exactly one wins.
+
+Note `AbandonAsync`. Without it, one 500 would poison a key forever and the client's perfectly
+reasonable retry would be refused until the purge job came round.
 
 ## Working with migrations
 

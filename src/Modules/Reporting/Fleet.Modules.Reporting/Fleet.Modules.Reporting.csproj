@@ -13,9 +13,22 @@
     <ProjectReference Include="..\Fleet.Modules.Reporting.Contracts\Fleet.Modules.Reporting.Contracts.csproj" />
   </ItemGroup>
 
+  <!-- Utilisation is bookings over vehicles, so this module reads both - through their contracts,
+       and never by joining across schemas. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Vehicles\Fleet.Modules.Vehicles.Contracts\Fleet.Modules.Vehicles.Contracts.csproj" />
+    <ProjectReference Include="..\..\Bookings\Fleet.Modules.Bookings.Contracts\Fleet.Modules.Bookings.Contracts.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="EFCore.NamingConventions" />
   </ItemGroup>
 
   <ItemGroup>

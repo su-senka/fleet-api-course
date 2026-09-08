@@ -1,5 +1,8 @@
 using Fleet.Common;
+using Fleet.Modules.Bookings;
+using Fleet.Modules.Vehicles;
 using Microsoft.Extensions.Configuration;
+using Fleet.Modules.Drivers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Fleet.Modules.Reporting.Tests;
@@ -19,6 +22,7 @@ public sealed class ReportingModuleRegistrationTests
         {
             ["ConnectionStrings:Fleet"] =
                 "Host=localhost;Port=5432;Database=fleet;Username=fleet;Password=fleet",
+            ["ConnectionStrings:Blobs"] = "UseDevelopmentStorage=true",
         })
         .Build();
 
@@ -28,9 +32,13 @@ public sealed class ReportingModuleRegistrationTests
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // The same two calls a host makes, in the same order. The shared kernel first, because
-        // modules depend on what it registers - IClock, for one.
+        // The same calls a host makes, in the same order. Reporting reads vehicles and bookings
+        // and writes the finished CSV to the blob store, so all of that has to be there first.
         services.AddFleetCommon();
+        services.AddFleetInfrastructure(Configuration);
+        services.AddVehiclesModule(Configuration);
+        services.AddBookingsModule(Configuration);
+        services.AddDriversModule(Configuration);
         services.AddReportingModule(Configuration);
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions

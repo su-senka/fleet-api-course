@@ -14,6 +14,11 @@
     <ProjectReference Include="..\..\src\Modules\Notifications\Fleet.Modules.Notifications\Fleet.Modules.Notifications.csproj" />
   </ItemGroup>
 
+  <!-- Notifications handles an event defined in the Drivers contracts. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Drivers\Fleet.Modules.Drivers\Fleet.Modules.Drivers.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />

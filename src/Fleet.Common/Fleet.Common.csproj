@@ -10,6 +10,12 @@
 
     Microsoft.Extensions.* abstractions are fine and deliberately allowed: dependency injection,
     configuration, logging and hosting are not web frameworks. A console app uses all four.
+
+    Milestone 5 added two more: EF Core Relational, for the outbox base types every publishing
+    module reuses, and the Azure blob SDK, for the one IBlobStore implementation. Both are
+    infrastructure that more than one module needs and that belongs nowhere else in the layout.
+    Neither weakens the rule that matters - this project still references no module and no part
+    of ASP.NET Core, and Fleet.Architecture.Tests still fails the build if that changes.
   -->
   <PropertyGroup>
     <RootNamespace>Fleet.Common</RootNamespace>
@@ -20,6 +26,16 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+
+  <ItemGroup Label="Infrastructure shared by more than one module">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="Azure.Storage.Blobs" />
   </ItemGroup>
 
 </Project>

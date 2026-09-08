@@ -17,4 +17,8 @@ CREATE SCHEMA IF NOT EXISTS maintenance;
 CREATE SCHEMA IF NOT EXISTS reporting;
 CREATE SCHEMA IF NOT EXISTS notifications;
 
-GRANT ALL ON SCHEMA vehicles, drivers, bookings, maintenance, reporting, notifications TO fleet;
+-- Not a module. Holds the idempotency key store, which belongs to the HTTP layer rather than to
+-- vehicles or bookings, and would look owned by whichever module it was parked in.
+CREATE SCHEMA IF NOT EXISTS shared;
+
+GRANT ALL ON SCHEMA vehicles, drivers, bookings, maintenance, reporting, notifications, shared TO fleet;

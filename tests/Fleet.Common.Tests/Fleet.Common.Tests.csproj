@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tests for the shared kernel.
+
+    Section 4 of the brief does not list this project, because it did not anticipate that the
+    outbox and the idempotency store would live in Fleet.Common. Section 11 asks for tests of both
+    by name, and neither has a module to belong to, so this is where they go.
+  -->
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Fleet.Common.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Fleet.Common\Fleet.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="EFCore.NamingConventions" />
+  </ItemGroup>
+
+</Project>
