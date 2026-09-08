@@ -13,6 +13,10 @@ Two hosts run side by side:
 | `Fleet.Api` | 5100 | The reference slice. Vehicles and Bookings, implemented in full. Read it. |
 | `Fleet.Api.Workshop` | 5101 | Yours. Same modules, same wiring, zero endpoints. Write it. |
 
+Everything else — six modules, 3,000 lines of tested domain logic, deterministic seed data, a
+transactional outbox, a blob store, an idempotency store and a deliberately unreliable upstream —
+is finished before week 1.
+
 ---
 
 ## Prerequisites
@@ -39,8 +43,32 @@ needed when you want a populated database without leaving an API running. Set
 `Database:Initialize` to `false` to start a host that leaves the database alone.
 
 `--wait` blocks until every container reports healthy, which takes about a minute on a cold
-start — mostly Keycloak importing the realm. Then open <http://localhost:5101/scalar> and admire
-the empty API surface.
+start — mostly Keycloak importing the realm.
+
+## Running both hosts side by side
+
+This is how the repository is meant to be used. Two terminals:
+
+```bash
+dotnet run --project src/Fleet.Api             # the reference, on :5100
+dotnet run --project src/Fleet.Api.Workshop    # yours, on :5101
+```
+
+Then open both:
+
+| | |
+|---|---|
+| <http://localhost:5100/scalar> | thirteen endpoints across Vehicles, Depots and Bookings |
+| <http://localhost:5101/scalar> | **empty**, and filling it in is the course |
+
+They share one database and register exactly the same six modules. The only difference is that one
+has endpoints. Everything you need to write them is already running — 250 vehicles, 3,002 bookings,
+Keycloak with six users, and a supplier that fails on purpose.
+
+Start at [`docs/assignments/week-1.md`](docs/assignments/week-1.md), then open the matching stub in
+`src/Fleet.Api.Workshop/Endpoints/`. When you are stuck, the finished version of Vehicles and
+Bookings is in `src/Fleet.Api/` — but try it first. Reading the answer before attempting the
+question is a reliable way to feel like you understood something you did not.
 
 > **macOS:** ports 5000 and 5001 are taken by the AirPlay Receiver, which is why this repository
 > uses 5100 and 5101. If you would rather have 5000 back, turn AirPlay Receiver off in
@@ -419,6 +447,19 @@ dotnet test Fleet.sln                                # make test
 dotnet run --project src/Fleet.Api                   # make api
 dotnet run --project src/Fleet.Api.Workshop          # make workshop
 ```
+
+## Where the documentation is
+
+| | |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | The module dependency diagram, and how a request and an event travel |
+| [`docs/adr/`](docs/adr/) | Six decisions, each with what it cost |
+| [`docs/assignments/`](docs/assignments/) | Fourteen weeks. Titles are a proposal; the specifications are the course author's |
+| [`requests/`](requests/) | `.http` files for the reference slice |
+
+The ADRs are worth reading before week 1. Several explain why something you are about to be asked
+to build is shaped the way it is, and [ADR 4](docs/adr/0004-result-instead-of-exceptions.md)
+explains why the most important decision in the course — which status code — is left to you.
 
 ## Notes for the curious
 
