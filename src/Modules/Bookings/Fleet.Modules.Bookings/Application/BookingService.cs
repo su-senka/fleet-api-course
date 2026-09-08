@@ -38,15 +38,19 @@ internal sealed class BookingService(
         ArgumentNullException.ThrowIfNull(page);
         ArgumentNullException.ThrowIfNull(filter);
 
-        var query = dbContext.Bookings.AsNoTracking().ApplyFilter(filter);
+        var filtered = dbContext.Bookings.AsNoTracking().ApplyFilter(filter);
+        if (filtered.IsFailure)
+        {
+            return filtered.Error;
+        }
 
-        var sorted = query.ApplySort(sort);
+        var sorted = filtered.Value.ApplySort(sort);
         if (sorted.IsFailure)
         {
             return sorted.Error;
         }
 
-        var totalCount = await query.LongCountAsync(cancellationToken);
+        var totalCount = await filtered.Value.LongCountAsync(cancellationToken);
 
         var bookings = await sorted.Value
             .Skip(page.Skip)
@@ -310,11 +314,8 @@ internal sealed class BookingService(
             await dbContext.SaveChangesAsync(cancellationToken);
             return Result.Success();
         }
-        catch (DbUpdateException exception)
-            when (exception.InnerException is PostgresException
-                  {
-                      SqlState: PostgresErrorCodes.ExclusionViolation,
-                  })
+        catch (Exception exception)
+            when (PostgresErrorCodeOf(exception) == PostgresErrorCodes.ExclusionViolation)
         {
             // The exclusion constraint caught a booking that our own check said was fine, which
             // means another transaction committed in between. Exactly the race the constraint is
@@ -322,6 +323,23 @@ internal sealed class BookingService(
             return Error.Conflict(
                 "booking.overlaps_existing",
                 "That vehicle was booked for an overlapping window while this request was in flight.");
+        }
+        catch (Exception exception)
+            when (PostgresErrorCodeOf(exception)
+                  is PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.SerializationFailure)
+        {
+            // Two transactions inserting overlapping windows for the same vehicle can deadlock
+            // instead of producing a clean exclusion violation: each takes a speculative lock on
+            // its own index entry and then waits on the other's, and Postgres breaks the cycle by
+            // killing one of them.
+            //
+            // Not a bug and not a 500. From the caller's point of view it is the same situation as
+            // losing the race - somebody else is writing to this vehicle's calendar - and the same
+            // answer applies: try again. A separate code, so a client can tell "you definitely
+            // clash" from "we could not tell, retry".
+            return Error.Conflict(
+                "booking.write_conflict",
+                "Another request was writing to this vehicle's calendar at the same time. Try again.");
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -331,6 +349,32 @@ internal sealed class BookingService(
                 "booking.version_mismatch",
                 "This booking has changed since you last read it. Fetch it again and retry.");
         }
+    }
+
+    /// <summary>
+    /// Finds the Postgres error code anywhere in an exception chain, or <c>null</c> if there is none.
+    /// </summary>
+    /// <remarks>
+    /// Matching on <c>DbUpdateException</c> with a <c>PostgresException</c> inner is the obvious
+    /// thing to write, and it is not enough. EF Core wraps a transient failure in an
+    /// <c>InvalidOperationException</c> - "likely due to a transient failure" - when no retrying
+    /// execution strategy is configured, so the same deadlock arrives as one type or the other
+    /// depending on where it was detected. Walking the chain is the only reliable way to ask
+    /// "what did Postgres actually say?".
+    ///
+    /// A ten-way parallel booking test found this. Two concurrent requests almost never do.
+    /// </remarks>
+    private static string? PostgresErrorCodeOf(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException postgres)
+            {
+                return postgres.SqlState;
+            }
+        }
+
+        return null;
     }
 
     private static Result CheckExpectedRowVersion(Booking booking, string? expectedRowVersion)

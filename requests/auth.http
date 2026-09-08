@@ -1,0 +1,42 @@
+###############################################################################
+# Getting a token.
+#
+# Run the request for whichever role you want, then use {{token}} in the other
+# files. Tokens last an hour; when everything suddenly answers 401, come back
+# here.
+#
+# The password grant is fine on a laptop and wrong everywhere else. A real
+# client uses the authorization code flow with PKCE.
+###############################################################################
+
+@keycloak = http://localhost:8080/realms/fleet
+
+### Admin - may do anything, including adding vehicles
+# @name adminToken
+POST {{keycloak}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id=fleet-api&username=admin.novak&password=fleet&grant_type=password
+
+### Dispatcher - books for anybody, cannot change the fleet
+# @name dispatcherToken
+POST {{keycloak}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id=fleet-api&username=dispatch.svoboda&password=fleet&grant_type=password
+
+### Driver - sees and books only their own
+# @name driverToken
+POST {{keycloak}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id=fleet-api&username=driver.dvorak&password=fleet&grant_type=password
+
+###############################################################################
+# Paste the access_token into https://jwt.io and read the claims. Three matter:
+#
+#   aud                 must be fleet-api, or the API rejects the token
+#   realm_access.roles  the fleet.* roles, nested inside a JSON object - see
+#                       AuthenticationExtensions for why that needs flattening
+#   preferred_username  how a token is matched to a row in drivers.drivers
+###############################################################################

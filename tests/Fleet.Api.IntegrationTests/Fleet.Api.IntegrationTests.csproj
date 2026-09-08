@@ -3,8 +3,11 @@
   <!--
     End-to-end tests for the reference slice: real HTTP over a real host.
 
-    Milestone 1 ships the host smoke test only. The Testcontainers Postgres fixture, and with it
-    the parallel double-booking test, arrive with the endpoints in milestone 6.
+    Testcontainers gives each run a throwaway Postgres, seeded exactly as `make reset` would seed
+    it. Authentication is replaced with a header-driven test scheme - see TestAuthHandler - because
+    standing up Keycloak to prove that a 403 is a 403 would be a poor trade.
+
+    When Docker is not running these skip rather than fail.
   -->
   <PropertyGroup>
     <IsTestProject>true</IsTestProject>
@@ -17,6 +20,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
 
 </Project>

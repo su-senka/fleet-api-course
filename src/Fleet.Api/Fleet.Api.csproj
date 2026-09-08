@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup Label="API surface">
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Scalar.AspNetCore" />
     <PackageReference Include="FluentValidation" />

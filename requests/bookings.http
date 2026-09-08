@@ -1,0 +1,263 @@
+###############################################################################
+# Bookings - the harder worked resource, and where most of the HTTP is.
+#
+# Four things here happen nowhere else in the API:
+#   ETags and If-Match      so two dispatchers cannot overwrite each other
+#   Idempotency-Key         so a retried POST does not book the van twice
+#   resource authorization  so a driver sees only their own
+#   one ErrorKind, two codes  409 for an overlap, 412 for a stale precondition
+###############################################################################
+
+@api = http://localhost:5100
+@keycloak = http://localhost:8080/realms/fleet
+
+### A dispatcher can book for anybody
+# @name login
+POST {{keycloak}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id=fleet-api&username=dispatch.svoboda&password=fleet&grant_type=password
+
+@token = {{login.response.body.access_token}}
+
+###############################################################################
+# Reading
+###############################################################################
+
+### The calendar, newest first. 3,002 in the seed.
+# @name bookings
+GET {{api}}/bookings?pageSize=5
+Authorization: Bearer {{token}}
+
+@bookingId = {{bookings.response.body.items[0].id}}
+@vehicleId = {{bookings.response.body.items[0].vehicleId}}
+@driverId = {{bookings.response.body.items[0].driverId}}
+
+### Only what is confirmed
+GET {{api}}/bookings?status=Confirmed&pageSize=5
+Authorization: Bearer {{token}}
+
+### One vehicle's calendar
+GET {{api}}/bookings?vehicleId={{vehicleId}}
+Authorization: Bearer {{token}}
+
+### A window. from/to bound the booking, not its start - a booking that began
+### last week and is still running counts as happening today.
+GET {{api}}/bookings?from=2026-09-01T00:00:00Z&to=2026-10-01T00:00:00Z&pageSize=5
+Authorization: Bearer {{token}}
+
+### Sort by when it starts, soonest first
+GET {{api}}/bookings?sort=startsAt&pageSize=5
+Authorization: Bearer {{token}}
+
+### One booking. Look at the ETag header on the response - you need it below.
+# @name booking
+GET {{api}}/bookings/{{bookingId}}
+Authorization: Bearer {{token}}
+
+@etag = {{booking.response.headers.ETag}}
+
+###############################################################################
+# Creating, with Idempotency-Key
+#
+# Change the dates before running these - the seed already fills the calendar
+# for the next couple of months, and the vehicle has to be free.
+###############################################################################
+
+### Book a vehicle. 201, a Location header, and an ETag.
+# @name created
+POST {{api}}/bookings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: 7f3a1c92-4d5e-4a1b-9c8f-2e6b0d4a1f37
+
+{
+  "vehicleId": "{{vehicleId}}",
+  "driverId": "{{driverId}}",
+  "purpose": "Rozvoz Praha - Brno",
+  "startsAt": "2027-06-01T08:00:00Z",
+  "endsAt": "2027-06-01T17:00:00Z"
+}
+
+@newBookingId = {{created.response.body.id}}
+
+### Exactly the same request again, same key. The stored response is replayed:
+### same 201, same booking id, and an Idempotency-Replayed: true header. No
+### second booking is made - check the calendar afterwards.
+POST {{api}}/bookings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: 7f3a1c92-4d5e-4a1b-9c8f-2e6b0d4a1f37
+
+{
+  "vehicleId": "{{vehicleId}}",
+  "driverId": "{{driverId}}",
+  "purpose": "Rozvoz Praha - Brno",
+  "startsAt": "2027-06-01T08:00:00Z",
+  "endsAt": "2027-06-01T17:00:00Z"
+}
+
+### Same key, different body: 422. That is not a retry, it is a confused
+### client, and replaying an unrelated response would be worse than failing.
+POST {{api}}/bookings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: 7f3a1c92-4d5e-4a1b-9c8f-2e6b0d4a1f37
+
+{
+  "vehicleId": "{{vehicleId}}",
+  "driverId": "{{driverId}}",
+  "purpose": "Something completely different",
+  "startsAt": "2027-06-01T08:00:00Z",
+  "endsAt": "2027-06-01T17:00:00Z"
+}
+
+### The same window with no key at all: 409, booking.overlaps_existing.
+### Enforced twice - by the service, and by a Postgres exclusion constraint.
+POST {{api}}/bookings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "vehicleId": "{{vehicleId}}",
+  "driverId": "{{driverId}}",
+  "purpose": "Rozvoz Praha - Brno",
+  "startsAt": "2027-06-01T08:00:00Z",
+  "endsAt": "2027-06-01T17:00:00Z"
+}
+
+### Starting exactly when the last one ends: allowed. The window is half-open,
+### so bookings that touch do not overlap. This is the case people get wrong.
+POST {{api}}/bookings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "vehicleId": "{{vehicleId}}",
+  "driverId": "{{driverId}}",
+  "purpose": "Navazujici smena",
+  "startsAt": "2027-06-01T17:00:00Z",
+  "endsAt": "2027-06-01T21:00:00Z"
+}
+
+###############################################################################
+# Updating, with If-Match
+###############################################################################
+
+### Fetch it to get a fresh ETag
+# @name fresh
+GET {{api}}/bookings/{{newBookingId}}
+Authorization: Bearer {{token}}
+
+@freshEtag = {{fresh.response.headers.ETag}}
+
+### No If-Match: 428 Precondition Required. The API refuses to let you update
+### a booking you have not read.
+PUT {{api}}/bookings/{{newBookingId}}/schedule
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "startsAt": "2027-06-02T08:00:00Z",
+  "endsAt": "2027-06-02T17:00:00Z"
+}
+
+### A stale ETag: 412 Precondition Failed. Note it is not a 409 - what failed
+### is the condition the client attached, not the request.
+PUT {{api}}/bookings/{{newBookingId}}/schedule
+Authorization: Bearer {{token}}
+Content-Type: application/json
+If-Match: "AAAAAQ=="
+
+{
+  "startsAt": "2027-06-02T08:00:00Z",
+  "endsAt": "2027-06-02T17:00:00Z"
+}
+
+### The right one: 200, and a new ETag on the response
+PUT {{api}}/bookings/{{newBookingId}}/schedule
+Authorization: Bearer {{token}}
+Content-Type: application/json
+If-Match: {{freshEtag}}
+
+{
+  "startsAt": "2027-06-02T08:00:00Z",
+  "endsAt": "2027-06-02T17:00:00Z"
+}
+
+### Send the same one again: 412. The version moved on when the write landed,
+### which is exactly what stops a second dispatcher overwriting the first.
+PUT {{api}}/bookings/{{newBookingId}}/schedule
+Authorization: Bearer {{token}}
+Content-Type: application/json
+If-Match: {{freshEtag}}
+
+{
+  "startsAt": "2027-06-03T08:00:00Z",
+  "endsAt": "2027-06-03T17:00:00Z"
+}
+
+###############################################################################
+# Cancelling
+###############################################################################
+
+### Fresh ETag again
+# @name beforeCancel
+GET {{api}}/bookings/{{newBookingId}}
+Authorization: Bearer {{token}}
+
+### 204, and the vehicle's window is free again - a cancelled booking is
+### excluded from the exclusion constraint.
+DELETE {{api}}/bookings/{{newBookingId}}
+Authorization: Bearer {{token}}
+If-Match: {{beforeCancel.response.headers.ETag}}
+
+### Cancel it again: still 204. The domain calls a second cancel a conflict,
+### but DELETE is meant to be idempotent over HTTP and the caller got what they
+### wanted. The endpoint makes that call, not the module - see
+### BookingEndpoints.CancelAsync.
+# @name afterCancel
+GET {{api}}/bookings/{{newBookingId}}
+Authorization: Bearer {{token}}
+
+###
+DELETE {{api}}/bookings/{{newBookingId}}
+Authorization: Bearer {{token}}
+If-Match: {{afterCancel.response.headers.ETag}}
+
+###############################################################################
+# A driver sees only their own
+###############################################################################
+
+### Sign in as a driver
+# @name driverLogin
+POST {{keycloak}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id=fleet-api&username=driver.dvorak&password=fleet&grant_type=password
+
+@driverToken = {{driverLogin.response.body.access_token}}
+
+### The dispatcher sees 3,002. The driver sees about 50 - and note that the
+### totalCount is right, because the filter is pinned before the query runs
+### rather than rows being discarded afterwards.
+GET {{api}}/bookings?pageSize=5
+Authorization: Bearer {{driverToken}}
+
+### Somebody else's booking: 403. The rule needs the booking itself, so it
+### lives in an IAuthorizationHandler rather than in a policy on the endpoint.
+GET {{api}}/bookings/{{bookingId}}
+Authorization: Bearer {{driverToken}}
+
+### And a driver may not book for anybody else either
+POST {{api}}/bookings
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{
+  "vehicleId": "{{vehicleId}}",
+  "driverId": "{{driverId}}",
+  "purpose": "Not mine to book",
+  "startsAt": "2027-08-01T08:00:00Z",
+  "endsAt": "2027-08-01T17:00:00Z"
+}
