@@ -128,8 +128,34 @@ assignment has something real to defend against. Its behaviour is set by environ
 | `FAKE_RATE_LIMIT` | `20` | Requests per minute before `429` with `Retry-After` |
 | `FAKE_OUTAGE_AFTER` | unset | After N requests, fail everything for 60 seconds |
 
-Every decision it makes is logged, so you can line its log up against your circuit breaker's and
-see exactly which request opened it.
+Every decision it makes is logged with the request's sequence number, to the console and to Seq if
+`SEQ_URL` is set - which it is in `docker-compose.yml`. Filter Seq by `Service = 'supplier-fake'`
+and you can line the supplier's behaviour up against your own circuit breaker's, in one place.
+
+**The failures are reproducible.** A shared `Random` would give a different sequence on every run,
+because concurrent requests race for it. Instead each request takes a sequence number and its
+treatment is derived by hashing `(FAKE_SEED, sequence)`, so request 37 gets the same verdict
+whether it arrives alone or alongside twenty others. Same seed, same run, same failures. The rate
+limit and the outage window are the exceptions: both are genuinely about wall-clock time.
+
+`/health` is deliberately outside the failure injection - a container that reported itself
+unhealthy a quarter of the time would be no use to `docker compose`.
+
+To see it misbehave for yourself:
+
+```bash
+# 1000 orders with only the error rate turned on; expect roughly 250 failures
+docker compose exec supplier-fake sh -c 'echo'   # just to check it is up
+for i in $(seq 1 40); do
+  curl -s -o /dev/null -w "%{http_code} " -X POST http://localhost:5080/orders \
+    -H 'Content-Type: application/json' \
+    -d '{"workOrderId":"00000000-0000-0000-0000-000000000001","lines":[{"partNumber":"OLEJ-FILTR","quantity":1}]}'
+done; echo
+```
+
+The first twenty come back `201` or `500`; after that the rate limit kicks in and the rest are
+`429` with a `Retry-After` header. Change `FAKE_ERROR_RATE` and friends in `docker-compose.yml`
+and `docker compose up -d --force-recreate supplier-fake` to make it kinder or crueller.
 
 ## The seed data
 
@@ -145,6 +171,8 @@ screens are looking at the same rows.
 | Drivers | 60 | Three of them can sign in - see the Keycloak table above |
 | Certificates | 177 | Licences, medicals and ADR, some superseded by renewals |
 | Bookings | 3,002 | Across 18 months: ~2,500 completed, ~250 confirmed, ~250 cancelled |
+| Work orders | 400 | Every status; 200 already carry a supplier order id |
+| Part order lines | 796 | On 180 of the 250 vehicles - the other 70 have never been in the workshop |
 
 Among the drivers, four hold no licence at all, five hold one that has expired, and six hold one
 expiring within the next 30 days. Those fifteen are the reason the eligibility rule is worth
@@ -198,6 +226,25 @@ Pass it back as `ExpectedRowVersion` and a stale value returns `Conflict` instea
 overwriting whoever got there first. The service accepts quoted and weak (`W/"..."`) forms, so an
 `If-Match` header can go through unmodified. Whether your endpoint *requires* `If-Match` or merely
 honours it is your call - and worth arguing about before you decide.
+
+## The one call that leaves the process
+
+`IMaintenanceService.OrderPartsAsync` sends part lines to the supplier through a typed
+`HttpClient`. **That client has no timeout, no retry and no circuit breaker, on purpose.** It is
+registered in `MaintenanceModuleExtensions` next to a `TODO(week-12)` explaining exactly what is
+missing and what to think about before adding it.
+
+Measure the damage before you fix it. A supplier that stalls for eight seconds holds your request
+thread for eight seconds; `HttpClient`'s default timeout is a hundred. Everything the client does
+do properly is the part that is not a policy decision: an upstream `500`, `429`, `503`, timeout or
+refused connection all come back as `ErrorKind.Unavailable` rather than as an exception, because
+an upstream having a bad day is an expected outcome of calling it. A `400` maps to
+`ErrorKind.Validation` instead - the supplier understood us and disagreed, and retrying that
+changes nothing.
+
+Maintenance is the only module that returns `Unavailable`, which makes it the place to think hard
+about the difference between "you cannot do that" (409) and "try again shortly" (503) - and about
+which of the two deserves a `Retry-After` header.
 
 ## Working with migrations
 

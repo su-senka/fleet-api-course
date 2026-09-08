@@ -1,4 +1,5 @@
 using Fleet.Common;
+using Fleet.Modules.Vehicles;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,9 +29,10 @@ public sealed class MaintenanceModuleRegistrationTests
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // The same two calls a host makes, in the same order. The shared kernel first, because
-        // modules depend on what it registers - IClock, for one.
+        // The same calls a host makes, in the same order. Maintenance checks vehicles exist
+        // through IVehicleCatalog, so registering it alone leaves that unresolvable.
         services.AddFleetCommon();
+        services.AddVehiclesModule(Configuration);
         services.AddMaintenanceModule(Configuration);
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions

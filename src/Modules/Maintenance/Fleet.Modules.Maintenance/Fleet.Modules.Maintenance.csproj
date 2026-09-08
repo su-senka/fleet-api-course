@@ -13,9 +13,21 @@
     <ProjectReference Include="..\Fleet.Modules.Maintenance.Contracts\Fleet.Modules.Maintenance.Contracts.csproj" />
   </ItemGroup>
 
+  <!-- Maintenance reads vehicles to check they exist. Contracts only, as always. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Vehicles\Fleet.Modules.Vehicles.Contracts\Fleet.Modules.Vehicles.Contracts.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="EFCore.NamingConventions" />
+    <!-- AddHttpClient. Note the absence of Microsoft.Extensions.Http.Resilience: adding it is
+         part of the week-12 assignment, not part of this repository. -->
+    <PackageReference Include="Microsoft.Extensions.Http" />
   </ItemGroup>
 
   <ItemGroup>

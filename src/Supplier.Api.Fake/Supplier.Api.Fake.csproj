@@ -8,4 +8,15 @@
     <RootNamespace>Supplier.Api.Fake</RootNamespace>
   </PropertyGroup>
 
+  <!--
+    Serilog only, and only so that every failure this service invents lands in Seq next to the
+    log lines from the API that called it. Correlating "my circuit breaker opened" with "the
+    upstream returned 500 three times in a row" is the whole point of the week-12 exercise, and
+    it is much harder across two separate log streams.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.Seq" />
+  </ItemGroup>
+
 </Project>
