@@ -14,6 +14,12 @@
     <ProjectReference Include="..\..\src\Modules\Maintenance\Fleet.Modules.Maintenance\Fleet.Modules.Maintenance.csproj" />
   </ItemGroup>
 
+  <!-- Maintenance reads the Vehicles contracts, so a container holding only Maintenance cannot
+       be built. The registration test wires both up, exactly as a host does. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Vehicles\Fleet.Modules.Vehicles\Fleet.Modules.Vehicles.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />

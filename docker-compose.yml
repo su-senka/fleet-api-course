@@ -123,6 +123,9 @@ services:
     container_name: fleet-supplier-fake
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      # Log every injected failure to the same Seq the APIs use, so both sides of the
+      # conversation end up in one place. Filter on Service = 'supplier-fake'.
+      SEQ_URL: http://seq:80
       # Failure injection. Change these to make the week-12 assignment easier or crueller;
       # FAKE_SEED keeps whatever you choose reproducible across restarts.
       FAKE_SEED: "20260101"
