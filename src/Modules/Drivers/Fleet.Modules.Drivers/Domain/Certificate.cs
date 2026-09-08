@@ -56,6 +56,16 @@ internal sealed class Certificate
     /// </summary>
     public DateTimeOffset? SupersededAt { get; private set; }
 
+    /// <summary>
+    /// When a <c>CertificateExpiringSoon</c> event was last raised for this certificate.
+    /// </summary>
+    /// <remarks>
+    /// The expiry scan runs on a timer. Without a marker it would announce the same certificate on
+    /// every sweep, and Notifications would fill up with the same row. Recording the warning in the
+    /// same transaction as the outbox message is what makes "announce once" true.
+    /// </remarks>
+    public DateTimeOffset? ExpiryWarningSentAt { get; private set; }
+
     public bool IsCurrent => SupersededAt is null;
 
     public static Result<Certificate> Issue(
@@ -100,6 +110,24 @@ internal sealed class Certificate
     public bool IsValidOn(DateOnly date) => date >= IssuedOn && date <= ExpiresOn;
 
     public void Supersede(DateTimeOffset at) => SupersededAt = at;
+
+    /// <summary>
+    /// Records that an expiry warning has gone out, and reports whether one was needed.
+    /// </summary>
+    /// <returns>
+    /// <c>false</c> when this certificate has already been warned about since it was last renewed,
+    /// so the caller can skip it without raising a second event.
+    /// </returns>
+    public bool TryMarkExpiryWarningSent(DateTimeOffset at)
+    {
+        if (ExpiryWarningSentAt is not null)
+        {
+            return false;
+        }
+
+        ExpiryWarningSentAt = at;
+        return true;
+    }
 
     public void AttachScan(string blobId) => ScanBlobId = blobId;
 }

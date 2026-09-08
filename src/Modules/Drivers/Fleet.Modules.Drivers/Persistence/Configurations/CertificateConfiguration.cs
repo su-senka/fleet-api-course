@@ -26,6 +26,7 @@ internal sealed class CertificateConfiguration : IEntityTypeConfiguration<Certif
 
         builder.Property(certificate => certificate.ScanBlobId).HasMaxLength(200);
         builder.Property(certificate => certificate.SupersededAt);
+        builder.Property(certificate => certificate.ExpiryWarningSentAt);
 
         // The expiry scan reads "current certificates expiring between these two dates" across the
         // whole table, which is precisely this index.

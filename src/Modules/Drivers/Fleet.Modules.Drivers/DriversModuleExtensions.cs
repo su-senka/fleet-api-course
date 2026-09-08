@@ -1,5 +1,7 @@
+using Fleet.Common;
 using Fleet.Common.Persistence;
 using Fleet.Modules.Drivers.Application;
+using Fleet.Modules.Drivers.Hosting;
 using Fleet.Modules.Drivers.Contracts;
 using Fleet.Modules.Drivers.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -45,6 +47,15 @@ public static class DriversModuleExtensions
         services.AddScoped<IDriverEligibility>(provider => provider.GetRequiredService<DriverDirectory>());
 
         services.AddScoped<IModuleDatabaseInitializer, DriversDatabaseInitializer>();
+
+        // This module publishes CertificateExpiringSoon, so it needs an outbox of its own. The
+        // table is mapped into the drivers schema by DriversDbContext.
+        services.AddModuleOutbox<DriversDbContext>();
+
+        services.Configure<CertificateExpiryOptions>(
+            configuration.GetSection(CertificateExpiryOptions.SectionName));
+
+        services.AddHostedService<CertificateExpiryScanner>();
 
         return services;
     }

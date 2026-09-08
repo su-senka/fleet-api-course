@@ -23,10 +23,53 @@ namespace Fleet.Modules.Drivers.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Fleet.Common.Messaging.Outbox.OutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_outbox");
+
+                    b.HasIndex("OccurredAt")
+                        .HasDatabaseName("ix_outbox_pending")
+                        .HasFilter("processed_at IS NULL");
+
+                    b.ToTable("outbox", "drivers");
+                });
+
             modelBuilder.Entity("Fleet.Modules.Drivers.Domain.Certificate", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
@@ -37,6 +80,10 @@ namespace Fleet.Modules.Drivers.Persistence.Migrations
                     b.Property<DateOnly>("ExpiresOn")
                         .HasColumnType("date")
                         .HasColumnName("expires_on");
+
+                    b.Property<DateTimeOffset?>("ExpiryWarningSentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expiry_warning_sent_at");
 
                     b.Property<DateOnly>("IssuedOn")
                         .HasColumnType("date")
@@ -76,7 +123,6 @@ namespace Fleet.Modules.Drivers.Persistence.Migrations
             modelBuilder.Entity("Fleet.Modules.Drivers.Domain.Driver", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 

@@ -28,6 +28,10 @@ builder.AddFleetHealthChecks();
 // The shared kernel, then one call per module. A host knows the module's registration method
 // and nothing else about it.
 builder.Services.AddFleetCommon();
+
+// Blob storage, the idempotency key store, and the background service that drains every module's
+// outbox. Separate from AddFleetCommon because it needs configuration and real external services.
+builder.Services.AddFleetInfrastructure(builder.Configuration);
 builder.Services.AddVehiclesModule(builder.Configuration);
 builder.Services.AddDriversModule(builder.Configuration);
 builder.Services.AddBookingsModule(builder.Configuration);

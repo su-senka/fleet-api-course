@@ -13,9 +13,22 @@
     <ProjectReference Include="..\Fleet.Modules.Notifications.Contracts\Fleet.Modules.Notifications.Contracts.csproj" />
   </ItemGroup>
 
+  <!--
+    Referenced for the CertificateExpiringSoon event type alone. The dependency points from the
+    subscriber to the publisher, which is the right way round: Drivers has never heard of this
+    module and would work unchanged if it were deleted.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Drivers\Fleet.Modules.Drivers.Contracts\Fleet.Modules.Drivers.Contracts.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="EFCore.NamingConventions" />
   </ItemGroup>
 
   <ItemGroup>

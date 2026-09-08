@@ -49,6 +49,13 @@ internal sealed class VehicleCatalog(VehiclesDbContext dbContext) : IVehicleCata
         return summaries.ToDictionary(summary => summary.Id);
     }
 
+    public async Task<IReadOnlyList<VehicleSummary>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        await dbContext.Vehicles
+            .AsNoTracking()
+            .OrderBy(vehicle => vehicle.Plate)
+            .Select(vehicle => new VehicleSummary(vehicle.Id, vehicle.Plate, vehicle.Type, vehicle.Status))
+            .ToListAsync(cancellationToken);
+
     public async Task<bool> IsBookableAsync(Guid vehicleId, CancellationToken cancellationToken = default)
     {
         // Projecting the status rather than loading the entity keeps this to one small round trip;

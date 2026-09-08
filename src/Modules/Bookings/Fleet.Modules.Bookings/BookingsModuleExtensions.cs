@@ -41,6 +41,9 @@ public static class BookingsModuleExtensions
 
         services.AddScoped<IBookingService, BookingService>();
 
+        // The narrow read contract other modules use. Reporting needs it; nothing else does.
+        services.AddScoped<IBookingCalendar, BookingCalendar>();
+
         services.AddScoped<IModuleDatabaseInitializer, BookingsDatabaseInitializer>();
 
         return services;

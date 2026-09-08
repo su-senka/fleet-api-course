@@ -28,8 +28,8 @@ public sealed class NotificationsModuleRegistrationTests
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // The same two calls a host makes, in the same order. The shared kernel first, because
-        // modules depend on what it registers - IClock, for one.
+        // Notifications needs nothing but the shared kernel: it subscribes to an event whose type
+        // it references, and never calls the module that publishes it.
         services.AddFleetCommon();
         services.AddNotificationsModule(Configuration);
 

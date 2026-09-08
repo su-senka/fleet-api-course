@@ -27,4 +27,14 @@ public interface IVehicleCatalog
     Task<IReadOnlyDictionary<Guid, VehicleSummary>> GetManyAsync(
         IReadOnlyCollection<Guid> vehicleIds,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Every vehicle in the fleet.
+    /// </summary>
+    /// <remarks>
+    /// Unpaged, and deliberately so: a fleet-wide report needs the denominator, and 250 rows is
+    /// not worth paging. It would be the wrong method to reach for on a request path, and the
+    /// wrong shape entirely for a fleet of fifty thousand.
+    /// </remarks>
+    Task<IReadOnlyList<VehicleSummary>> GetAllAsync(CancellationToken cancellationToken = default);
 }
