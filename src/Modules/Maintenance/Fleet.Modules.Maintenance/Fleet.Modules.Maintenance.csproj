@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Maintenance module implementation. Owns the "maintenance" Postgres schema and nothing else.
+    Types in here are internal wherever possible; the module speaks to the outside world through
+    Fleet.Modules.Maintenance.Contracts.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Fleet.Modules.Maintenance</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Fleet.Modules.Maintenance.Contracts\Fleet.Modules.Maintenance.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Fleet.Modules.Maintenance.Tests" />
+  </ItemGroup>
+
+</Project>

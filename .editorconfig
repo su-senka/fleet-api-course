@@ -1,0 +1,74 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,http,md,props,targets,csproj,sln}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+indent_size = 4
+
+# --- Language conventions -----------------------------------------------------------------
+
+csharp_using_directive_placement = outside_namespace:warning
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_prefer_braces = true:silent
+csharp_style_var_for_built_in_types = false:silent
+csharp_style_var_when_type_is_apparent = true:silent
+csharp_style_var_elsewhere = false:silent
+csharp_style_expression_bodied_methods = when_on_single_line:silent
+csharp_style_expression_bodied_properties = true:silent
+csharp_style_prefer_primary_constructors = true:silent
+
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+dotnet_style_readonly_field = true:warning
+dotnet_style_prefer_is_null_check_over_reference_equality_method = true:warning
+
+# --- Naming -------------------------------------------------------------------------------
+
+dotnet_naming_rule.interfaces_start_with_i.severity = warning
+dotnet_naming_rule.interfaces_start_with_i.symbols = interface_symbol
+dotnet_naming_rule.interfaces_start_with_i.style = prefix_i_pascal
+dotnet_naming_symbols.interface_symbol.applicable_kinds = interface
+dotnet_naming_style.prefix_i_pascal.required_prefix = I
+dotnet_naming_style.prefix_i_pascal.capitalization = pascal_case
+
+dotnet_naming_rule.private_fields_underscore.severity = warning
+dotnet_naming_rule.private_fields_underscore.symbols = private_field_symbol
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel
+dotnet_naming_symbols.private_field_symbol.applicable_kinds = field
+dotnet_naming_symbols.private_field_symbol.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+
+dotnet_naming_rule.types_pascal.severity = warning
+dotnet_naming_rule.types_pascal.symbols = type_symbol
+dotnet_naming_rule.types_pascal.style = pascal
+dotnet_naming_symbols.type_symbol.applicable_kinds = class,struct,enum,delegate,method,property,event
+dotnet_naming_style.pascal.capitalization = pascal_case
+
+# --- Analyzer noise we deliberately turn off ----------------------------------------------
+
+# CA1848: "use LoggerMessage delegates" - correct for hot paths, but it buries the lesson
+#         in a repository whose point is readability.
+dotnet_diagnostic.CA1848.severity = none
+# CA1727: enforces PascalCase log template placeholders. We use them, but not worth an error.
+dotnet_diagnostic.CA1727.severity = suggestion
+
+[tests/**/*.cs]
+# Test classes do not need to be culture-aware or documented.
+dotnet_diagnostic.CA1861.severity = none

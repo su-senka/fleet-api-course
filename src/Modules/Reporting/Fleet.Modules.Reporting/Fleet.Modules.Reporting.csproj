@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Reporting module implementation. Owns the "reporting" Postgres schema and nothing else.
+    Types in here are internal wherever possible; the module speaks to the outside world through
+    Fleet.Modules.Reporting.Contracts.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Fleet.Modules.Reporting</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Fleet.Modules.Reporting.Contracts\Fleet.Modules.Reporting.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Fleet.Modules.Reporting.Tests" />
+  </ItemGroup>
+
+</Project>

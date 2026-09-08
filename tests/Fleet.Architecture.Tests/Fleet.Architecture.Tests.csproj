@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The rules from the module contract, expressed as tests that fail the build when broken.
+    These are the only tests in the repository that exist to constrain the *shape* of the code
+    rather than its behaviour.
+  -->
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Fleet.Architecture.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+  </ItemGroup>
+
+  <!--
+    Referenced so that every module assembly is copied into this project's output directory,
+    where ModuleAssemblies finds them. Do not add these usings to a module.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Fleet.Common\Fleet.Common.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Vehicles\Fleet.Modules.Vehicles\Fleet.Modules.Vehicles.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Drivers\Fleet.Modules.Drivers\Fleet.Modules.Drivers.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Bookings\Fleet.Modules.Bookings\Fleet.Modules.Bookings.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Maintenance\Fleet.Modules.Maintenance\Fleet.Modules.Maintenance.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Reporting\Fleet.Modules.Reporting\Fleet.Modules.Reporting.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Notifications\Fleet.Modules.Notifications\Fleet.Modules.Notifications.csproj" />
+  </ItemGroup>
+
+</Project>
