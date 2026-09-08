@@ -3,8 +3,10 @@ bin/
 obj/
 
 # On macOS and Linux, `dotnet ef` can create a directory whose name literally contains a
-# backslash - "bin\Debug" as one path segment - which the bin/ rule above does not match.
-*\*
+# backslash - "bin\Debug" as a single path segment - which the bin/ rule above does not match.
+# The backslash has to be escaped, because gitignore otherwise reads it as an escape character.
+bin\\Debug/
+bin\\Release/
 [Dd]ebug/
 [Rr]elease/
 artifacts/

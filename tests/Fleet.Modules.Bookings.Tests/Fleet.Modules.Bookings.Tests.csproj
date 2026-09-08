@@ -14,6 +14,25 @@
     <ProjectReference Include="..\..\src\Modules\Bookings\Fleet.Modules.Bookings\Fleet.Modules.Bookings.csproj" />
   </ItemGroup>
 
+  <!--
+    Bookings depends on the Vehicles and Drivers *contracts*, so a container containing only
+    Bookings cannot be built. These references let the registration test wire up all three the way
+    a host does. A test project is not a module, so this does not breach the boundary rules.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Vehicles\Fleet.Modules.Vehicles\Fleet.Modules.Vehicles.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Drivers\Fleet.Modules.Drivers\Fleet.Modules.Drivers.csproj" />
+  </ItemGroup>
+
+  <!--
+    The double-booking test needs a real Postgres: the exclusion constraint is the thing under
+    test, and no in-memory provider has one. Testcontainers starts a throwaway instance; when
+    Docker is not running the test skips rather than fails.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />

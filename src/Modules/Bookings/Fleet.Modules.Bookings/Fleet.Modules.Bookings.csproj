@@ -13,9 +13,23 @@
     <ProjectReference Include="..\Fleet.Modules.Bookings.Contracts\Fleet.Modules.Bookings.Contracts.csproj" />
   </ItemGroup>
 
+  <!--
+    The .Contracts projects of the two modules this one reads from, and nothing else. Referencing
+    Fleet.Modules.Vehicles instead of Fleet.Modules.Vehicles.Contracts is a build failure - see
+    Fleet.Architecture.Tests.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Vehicles\Fleet.Modules.Vehicles.Contracts\Fleet.Modules.Vehicles.Contracts.csproj" />
+    <ProjectReference Include="..\..\Drivers\Fleet.Modules.Drivers.Contracts\Fleet.Modules.Drivers.Contracts.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="EFCore.NamingConventions" />
   </ItemGroup>
 
   <ItemGroup>
