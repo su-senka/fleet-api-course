@@ -194,6 +194,48 @@ can refer to `vehicle:42` without reading the `vehicles` schema. Dates are the o
 relative to *today* rather than fixed: a licence that expired last year would stop being an
 interesting test case the moment the calendar moved past it.
 
+## The reference slice
+
+`Fleet.Api` implements two resources in full. They exist to be read before you write your own, and
+between them they cover every technique the rest of the course asks for.
+
+| | |
+|---|---|
+| `GET /vehicles` | paging, filtering, an allow-listed sort, 30-second output cache |
+| `GET/POST /vehicles/{id}/odometer-readings` | a sub-resource, and a domain rule surfacing as 400 |
+| `PUT /vehicles/{id}/status` | PUT to a sub-resource rather than PATCH on the parent |
+| `POST /vehicles` | 201 + `Location`, role-restricted to admins |
+| `GET /bookings` | a driver's list is scoped by pinning the filter, not by discarding rows |
+| `GET /bookings/{id}` | returns an `ETag`; resource-based authorization |
+| `POST /bookings` | `Idempotency-Key`, 201 + `Location` + `ETag` |
+| `PUT /bookings/{id}/schedule` | `If-Match` required: 428 without, 412 if stale |
+| `DELETE /bookings/{id}` | idempotent 204, even though the domain calls a second cancel a conflict |
+
+Four things are worth reading closely.
+
+**Where the status code is decided.** `Http/ProblemResults.cs` maps `ErrorKind` to a status code
+and an RFC 9457 document. That file is the entire answer to "who decides this is a 409?" - the
+modules never do. And the mapping is not one-to-one: `BookingEndpoints` turns the same
+`ErrorKind.Conflict` into a **412** when it came from a stale `If-Match`, because what failed is
+the precondition the client attached rather than the request itself.
+
+**Why `DELETE` answers 204 twice.** `IBookingService.CancelAsync` calls a second cancellation a
+conflict, and it is right to: the domain models a state machine and that transition does not
+exist. The endpoint disagrees, because `DELETE` is meant to be idempotent and the caller got what
+they asked for. Both are correct at their own layer. That disagreement is the clearest example in
+the repository of why `ErrorKind` is not a status code.
+
+**How a driver is kept to their own bookings.** Two different mechanisms, because they are two
+different problems. A single booking goes through `BookingAccessHandler`, an
+`IAuthorizationHandler` that needs the booking itself - a policy on the endpoint cannot express
+"but not that one". The *list* pins the `driverId` filter before the query runs; filtering
+afterwards would still leak the true total through the pagination metadata.
+
+**What the output cache is safe for.** `GET /vehicles` is cached for 30 seconds including for
+signed-in callers, which the framework's default policy refuses to do. That is safe here only
+because the vehicle list is identical for everyone. `GET /bookings` is not cached at all. Read
+`VehicleListCachePolicy` before copying it.
+
 ## Two things worth reading before you write an endpoint
 
 **The overlap rule is enforced twice.** `BookingService` checks for a clash before it inserts, and

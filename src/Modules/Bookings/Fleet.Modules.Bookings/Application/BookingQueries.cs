@@ -12,7 +12,17 @@ internal static class BookingQueries
 {
     public static readonly string[] SortableFieldNames = ["startsAt", "endsAt", "createdAt"];
 
-    public static IQueryable<Booking> ApplyFilter(this IQueryable<Booking> query, FilterRequest filter)
+    /// <summary>
+    /// Applies the filter terms this module understands.
+    /// </summary>
+    /// <remarks>
+    /// An unknown <em>term</em> is ignored - a client may send whatever it likes and the module
+    /// reads what it recognises. A known term with an unreadable <em>value</em> is a different
+    /// matter entirely: silently dropping <c>from=yesterday</c> would answer a request for one
+    /// day's bookings with the whole calendar, and the client would never know. That is the kind
+    /// of quiet wrongness that reaches production.
+    /// </remarks>
+    public static Result<IQueryable<Booking>> ApplyFilter(this IQueryable<Booking> query, FilterRequest filter)
     {
         if (filter.GuidTerm("vehicleId") is { } vehicleId)
         {
@@ -32,14 +42,26 @@ internal static class BookingQueries
         // "from" and "to" bound the window, not the start instant: a booking that began last week
         // and is still running today is happening today, and a calendar that hid it would be
         // lying. This is the same overlap test the domain uses, expressed in SQL.
-        if (ParseInstant(filter["from"]) is { } from)
+        var from = ReadInstant(filter, "from");
+        if (from.IsFailure)
         {
-            query = query.Where(booking => booking.EndsAt > from);
+            return from.Error;
         }
 
-        if (ParseInstant(filter["to"]) is { } to)
+        if (from.Value is { } notBefore)
         {
-            query = query.Where(booking => booking.StartsAt < to);
+            query = query.Where(booking => booking.EndsAt > notBefore);
+        }
+
+        var to = ReadInstant(filter, "to");
+        if (to.IsFailure)
+        {
+            return to.Error;
+        }
+
+        if (to.Value is { } notAfter)
+        {
+            query = query.Where(booking => booking.StartsAt < notAfter);
         }
 
         if (filter.Search is { } search)
@@ -48,7 +70,7 @@ internal static class BookingQueries
             query = query.Where(booking => EF.Functions.ILike(booking.Purpose, pattern));
         }
 
-        return query;
+        return Result<IQueryable<Booking>>.Success(query);
     }
 
     public static Result<IQueryable<Booking>> ApplySort(this IQueryable<Booking> query, SortRequest? sort)
@@ -85,12 +107,32 @@ internal static class BookingQueries
             : Result<IQueryable<Booking>>.Success(ordered);
     }
 
-    private static DateTimeOffset? ParseInstant(string? value) =>
-        DateTimeOffset.TryParse(
+    /// <summary>
+    /// Reads a term as an instant. Absent is fine; present and unreadable is not.
+    /// </summary>
+    /// <remarks>
+    /// A common way to arrive here with nonsense is an un-encoded <c>+</c> in a query string:
+    /// <c>?from=2026-01-01T00:00:00+00:00</c> reaches the server with the offset turned into a
+    /// space. Answering that with a 400 rather than the whole calendar is the difference between
+    /// a client fixing a bug and never noticing one.
+    /// </remarks>
+    private static Result<DateTimeOffset?> ReadInstant(FilterRequest filter, string key)
+    {
+        var value = filter[key];
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Result<DateTimeOffset?>.Success(null);
+        }
+
+        return DateTimeOffset.TryParse(
             value,
             CultureInfo.InvariantCulture,
             DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal,
             out var parsed)
-            ? parsed
-            : null;
+            ? Result<DateTimeOffset?>.Success(parsed)
+            : Error.Validation(
+                $"booking.{key}_invalid",
+                $"'{value}' is not an ISO-8601 instant. Remember to URL-encode the + in an offset.");
+    }
 }

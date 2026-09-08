@@ -1,0 +1,196 @@
+###############################################################################
+# Vehicles - the gentler of the two worked resources.
+#
+# Run auth.http first and paste a token below, or run the token request here.
+###############################################################################
+
+@api = http://localhost:5100
+@keycloak = http://localhost:8080/realms/fleet
+
+### Get an admin token first
+# @name login
+POST {{keycloak}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id=fleet-api&username=admin.novak&password=fleet&grant_type=password
+
+@token = {{login.response.body.access_token}}
+
+###############################################################################
+# Reading
+###############################################################################
+
+### Without a token: 401
+GET {{api}}/vehicles
+
+### The first page. Default page size is 20; the cap is 100.
+# @name vehicles
+GET {{api}}/vehicles
+Authorization: Bearer {{token}}
+
+@vehicleId = {{vehicles.response.body.items[0].id}}
+
+### Page 3, fifty at a time
+GET {{api}}/vehicles?page=3&pageSize=50
+Authorization: Bearer {{token}}
+
+### pageSize is clamped, not rejected. Ask for 5000 and you get 100.
+GET {{api}}/vehicles?pageSize=5000
+Authorization: Bearer {{token}}
+
+### Filter by status - about 25 vehicles are in the workshop
+GET {{api}}/vehicles?status=InMaintenance
+Authorization: Bearer {{token}}
+
+### Filter by type and depot together
+GET {{api}}/vehicles?type=Van&pageSize=5
+Authorization: Bearer {{token}}
+
+### Free-text search on the plate, with q
+GET {{api}}/vehicles?q=1B
+Authorization: Bearer {{token}}
+
+### Sort descending, with a leading minus
+GET {{api}}/vehicles?sort=-odometerKm&pageSize=5
+Authorization: Bearer {{token}}
+
+### A field that is not on the sort allow-list: 400, not a silently different order
+GET {{api}}/vehicles?sort=passwordHash
+Authorization: Bearer {{token}}
+
+### One vehicle, with its depot expanded
+GET {{api}}/vehicles/{{vehicleId}}
+Authorization: Bearer {{token}}
+
+### An id that does not exist: an RFC 9457 problem document
+GET {{api}}/vehicles/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###############################################################################
+# Writing
+###############################################################################
+
+### The depots, so the next request has somewhere to put the vehicle
+# @name depots
+GET {{api}}/depots
+Authorization: Bearer {{token}}
+
+@depotId = {{depots.response.body.$[0].id}}
+
+### Add a vehicle. 201 with a Location header pointing at it.
+POST {{api}}/vehicles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "plate": "8XY 4321",
+  "type": "Van",
+  "depotId": "{{depotId}}",
+  "odometerKm": 12500
+}
+
+### The same plate again: 409. One plate, one vehicle.
+POST {{api}}/vehicles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "plate": "8XY 4321",
+  "type": "Van",
+  "depotId": "{{depotId}}",
+  "odometerKm": 12500
+}
+
+### A request FluentValidation rejects: 400 with per-field errors
+POST {{api}}/vehicles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "plate": "",
+  "type": "Van",
+  "depotId": "{{depotId}}",
+  "odometerKm": -5
+}
+
+### Take a vehicle out of service
+PUT {{api}}/vehicles/{{vehicleId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "status": "InMaintenance" }
+
+### And put it back
+PUT {{api}}/vehicles/{{vehicleId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "status": "Available" }
+
+###############################################################################
+# Odometer readings - the module rule that mileage only ever goes up
+###############################################################################
+
+### The history, newest first. Sixty readings per vehicle in the seed.
+GET {{api}}/vehicles/{{vehicleId}}/odometer-readings?pageSize=5
+Authorization: Bearer {{token}}
+
+### A higher reading is accepted
+POST {{api}}/vehicles/{{vehicleId}}/odometer-readings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "recordedAt": "2026-09-08T09:30:00Z",
+  "km": 999999
+}
+
+### A lower one is not. 400, odometer.not_monotonic - and note that the rule
+### lives on the Vehicle entity, not in the endpoint.
+POST {{api}}/vehicles/{{vehicleId}}/odometer-readings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "recordedAt": "2026-09-08T10:00:00Z",
+  "km": 1
+}
+
+###############################################################################
+# Authorization
+###############################################################################
+
+### As a driver
+# @name driverLogin
+POST {{keycloak}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id=fleet-api&username=driver.dvorak&password=fleet&grant_type=password
+
+@driverToken = {{driverLogin.response.body.access_token}}
+
+### A driver may read the fleet...
+GET {{api}}/vehicles?pageSize=3
+Authorization: Bearer {{driverToken}}
+
+### ...but not add to it: 403
+POST {{api}}/vehicles
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{
+  "plate": "1AA 1111",
+  "type": "Car",
+  "depotId": "{{depotId}}",
+  "odometerKm": 0
+}
+
+###############################################################################
+# Caching
+#
+# GET /vehicles is cached for 30 seconds, including for signed-in callers.
+# Add a vehicle and re-run the list: totalCount will not move for half a minute.
+#
+# That is safe here only because the list is identical for every caller. Read
+# VehicleListCachePolicy before copying it onto anything user-specific.
+###############################################################################

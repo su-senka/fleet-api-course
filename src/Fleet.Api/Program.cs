@@ -1,4 +1,9 @@
+using Fleet.Api.Auth;
+using Fleet.Api.Endpoints;
 using Fleet.Api.Hosting;
+using Fleet.Api.Http;
+using Fleet.Api.Middleware;
+using Fleet.Api.OpenApi;
 using Fleet.Common;
 using Fleet.Common.Persistence;
 using Fleet.Modules.Bookings;
@@ -7,6 +12,9 @@ using Fleet.Modules.Maintenance;
 using Fleet.Modules.Notifications;
 using Fleet.Modules.Reporting;
 using Fleet.Modules.Vehicles;
+using System.Text.Json.Serialization;
+using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Scalar.AspNetCore;
 
 // -------------------------------------------------------------------------------------------
@@ -17,13 +25,15 @@ using Scalar.AspNetCore;
 // modules and exposes none of them.
 //
 // Notice what is NOT here: no business logic. Every module below is finished and tested. This
-// project's entire job is to put HTTP in front of it.
+// project's entire job is to put HTTP in front of it - routing, status codes, headers, caching,
+// authorization and the mapping between wire shapes and domain commands.
 // -------------------------------------------------------------------------------------------
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddFleetObservability(serviceName: "fleet-api");
 builder.AddFleetHealthChecks();
+builder.AddFleetAuthentication();
 
 // The shared kernel, then one call per module. A host knows the module's registration method
 // and nothing else about it.
@@ -39,8 +49,29 @@ builder.Services.AddMaintenanceModule(builder.Configuration);
 builder.Services.AddReportingModule(builder.Configuration);
 builder.Services.AddNotificationsModule(builder.Configuration);
 
+// "A driver may only touch their own bookings" - the one rule that needs the resource itself.
+builder.Services.AddScoped<IAuthorizationHandler, BookingAccessHandler>();
+
+// includeInternalTypes matters: the validators are internal, like nearly everything else here,
+// and the scanner skips non-public types by default. Without it they are silently not registered
+// and the validation filter fails at the first request rather than at startup.
+builder.Services.AddValidatorsFromAssemblyContaining<Program>(
+    ServiceLifetime.Singleton, includeInternalTypes: true);
+
+// Enums as names, not numbers. "status": "InMaintenance" tells a reader what it means;
+// "status": 2 makes them go and find the enum. It also means a value read from a response can be
+// handed straight back as a query-string filter, which is what a client will try first.
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
 builder.Services.AddProblemDetails();
-builder.Services.AddOpenApi();
+builder.Services.AddOutputCache();
+
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<FleetDocumentTransformer>();
+    options.AddOperationTransformer<FleetExampleTransformer>();
+});
 
 if (builder.Environment.IsDevelopment())
 {
@@ -84,9 +115,20 @@ if (app.Environment.IsDevelopment())
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
+// Order matters, and this is the order:
+//   caching before auth would serve one user's response to another;
+//   idempotency after auth, so an unauthenticated request never claims a key.
+app.UseOutputCache();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseFleetIdempotency();
+
 app.MapFleetHealthChecks();
 
-// The Vehicles and Bookings endpoint groups are mapped here, one call per resource.
+// The Vehicles and Bookings endpoint groups, one call per resource.
+app.MapVehicleEndpoints();
+app.MapDepotEndpoints();
+app.MapBookingEndpoints();
 
 await app.RunAsync();
 
