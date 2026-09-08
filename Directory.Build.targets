@@ -1,0 +1,31 @@
+<Project>
+
+  <!--
+    Test projects all need xunit.v3 and nothing else. Declaring it once here keeps the individual
+    .csproj files down to "what does this test project actually test".
+    A project opts in by setting <IsTestProject>true</IsTestProject>.
+
+    Note the absence of Microsoft.NET.Test.Sdk and xunit.runner.visualstudio. Those two bring in
+    the old VSTest runner, which the .NET 10 SDK no longer supports for xunit.v3. Under
+    Microsoft.Testing.Platform a test project is simply an executable that runs its own tests.
+  -->
+  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
+    <IsPackable>false</IsPackable>
+
+    <!-- xunit.v3 test projects are self-hosting executables under Microsoft.Testing.Platform.
+         See dotnet.config in the repository root, which selects that runner for `dotnet test`. -->
+    <OutputType>Exe</OutputType>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+
+  <!-- Every test file uses [Fact] and Assert. Importing Xunit once here keeps them out of the
+       top of 200 files. -->
+  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

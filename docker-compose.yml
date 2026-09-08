@@ -1,0 +1,146 @@
+# Everything the Fleet API needs, and nothing it does not.
+#
+#   docker compose up -d        start it all
+#   docker compose ps           check health
+#   make reset                  drop the database and start over
+#
+# Host ports are fixed rather than random so the README can tell you where things are and the
+# connection strings in appsettings.json just work. The port table is in the README.
+
+name: fleet
+
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: fleet-postgres
+    environment:
+      POSTGRES_DB: fleet
+      POSTGRES_USER: fleet
+      POSTGRES_PASSWORD: fleet
+      # Deterministic collation: without this, ORDER BY on plate names differs between machines
+      # and the seed data stops being reproducible.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fleet -d fleet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  seq:
+    image: datalust/seq:2024.3
+    container_name: fleet-seq
+    environment:
+      ACCEPT_EULA: "Y"
+    ports:
+      - "8081:80"
+    volumes:
+      - seq-data:/data
+    healthcheck:
+      # The Seq image ships neither curl nor wget, so this probes the health endpoint through
+      # bash's /dev/tcp support. Note CMD + bash rather than CMD-SHELL: CMD-SHELL runs /bin/sh,
+      # which is dash here, and dash has no /dev/tcp.
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/80 && echo -e 'GET /health HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'in service' <&3"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    container_name: fleet-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"   # UI
+      - "4317:4317"     # OTLP over gRPC - this is what the APIs export to
+      - "4318:4318"     # OTLP over HTTP
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider http://localhost:14269/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: fleet-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8080:8080"
+      - "9000:9000"     # management port, where the health endpoints live
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+    healthcheck:
+      # No curl or wget in this image either. Same /dev/tcp probe as Seq, against the
+      # management port where Keycloak serves its health endpoints.
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'UP' <&3"
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: fleet-azurite
+    command: ["azurite", "--blobHost", "0.0.0.0", "--queueHost", "0.0.0.0", "--tableHost", "0.0.0.0", "--location", "/data"]
+    ports:
+      - "10000:10000"   # blob  - the only one Fleet uses
+      - "10001:10001"   # queue
+      - "10002:10002"   # table
+    volumes:
+      - azurite-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 10000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  supplier-fake:
+    build:
+      context: .
+      dockerfile: src/Supplier.Api.Fake/Dockerfile
+    container_name: fleet-supplier-fake
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # Failure injection. Change these to make the week-12 assignment easier or crueller;
+      # FAKE_SEED keeps whatever you choose reproducible across restarts.
+      FAKE_SEED: "20260101"
+      FAKE_ERROR_RATE: "0.25"
+      FAKE_SLOW_RATE: "0.15"
+      FAKE_SLOW_MS: "8000"
+      FAKE_RATE_LIMIT: "20"
+      # FAKE_OUTAGE_AFTER: "50"
+    ports:
+      - "5080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+volumes:
+  postgres-data:
+  seq-data:
+  azurite-data:

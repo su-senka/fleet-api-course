@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    The student host. Identical wiring to Fleet.Api - same modules, same logging, same tracing,
+    same health checks - and not one endpoint. Everything you write for this course goes in here.
+
+    Run both at once: the reference API on :5100 and this one on :5101.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Fleet.Api.Workshop</RootNamespace>
+    <UserSecretsId>fleet-api-workshop</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup Label="Modules">
+    <ProjectReference Include="..\Fleet.Common\Fleet.Common.csproj" />
+    <ProjectReference Include="..\Modules\Vehicles\Fleet.Modules.Vehicles\Fleet.Modules.Vehicles.csproj" />
+    <ProjectReference Include="..\Modules\Drivers\Fleet.Modules.Drivers\Fleet.Modules.Drivers.csproj" />
+    <ProjectReference Include="..\Modules\Bookings\Fleet.Modules.Bookings\Fleet.Modules.Bookings.csproj" />
+    <ProjectReference Include="..\Modules\Maintenance\Fleet.Modules.Maintenance\Fleet.Modules.Maintenance.csproj" />
+    <ProjectReference Include="..\Modules\Reporting\Fleet.Modules.Reporting\Fleet.Modules.Reporting.csproj" />
+    <ProjectReference Include="..\Modules\Notifications\Fleet.Modules.Notifications\Fleet.Modules.Notifications.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Label="API surface">
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+
+  <ItemGroup Label="Observability">
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.Seq" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+  </ItemGroup>
+
+  <ItemGroup Label="Health checks">
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" />
+    <PackageReference Include="AspNetCore.HealthChecks.Uris" />
+    <PackageReference Include="AspNetCore.HealthChecks.Azure.Storage.Blobs" />
+    <PackageReference Include="AspNetCore.HealthChecks.UI.Client" />
+  </ItemGroup>
+
+</Project>

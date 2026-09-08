@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The public face of the Notifications module. Other modules may reference this project; they may not
+    reference Fleet.Modules.Notifications. Everything declared here must be public, and every type reachable
+    from a public signature must be public too - Fleet.Architecture.Tests fails the build otherwise.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Fleet.Modules.Notifications.Contracts</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Fleet.Common\Fleet.Common.csproj" />
+  </ItemGroup>
+
+</Project>
