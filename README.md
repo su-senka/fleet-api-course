@@ -144,15 +144,60 @@ screens are looking at the same rows.
 | Odometer readings | 15,000 | 60 per vehicle over 18 months, strictly increasing |
 | Drivers | 60 | Three of them can sign in - see the Keycloak table above |
 | Certificates | 177 | Licences, medicals and ADR, some superseded by renewals |
+| Bookings | 3,002 | Across 18 months: ~2,500 completed, ~250 confirmed, ~250 cancelled |
 
 Among the drivers, four hold no licence at all, five hold one that has expired, and six hold one
 expiring within the next 30 days. Those fifteen are the reason the eligibility rule is worth
 testing, and the last six are what a `CertificateExpiringSoon` scan is supposed to find.
 
+Two bookings are in there specifically to catch a wrong answer:
+
+- one vehicle has **two bookings that touch but do not overlap** - the second starts at the exact
+  instant the first ends. A closed-interval overlap check calls this a conflict. It is not one,
+  and it is the mistake almost everybody makes first.
+- another has a **cancelled booking sitting on top of a confirmed one**. That row can only exist
+  because the exclusion constraint is partial, which is what makes cancelling actually free the
+  slot.
+
 Ids come from `DeterministicGuid`, which hashes a name into a stable GUID, so the Bookings seeder
 can refer to `vehicle:42` without reading the `vehicles` schema. Dates are the one thing measured
 relative to *today* rather than fixed: a licence that expired last year would stop being an
 interesting test case the moment the calendar moved past it.
+
+## Two things worth reading before you write an endpoint
+
+**The overlap rule is enforced twice.** `BookingService` checks for a clash before it inserts, and
+Postgres refuses the row if one slips through:
+
+```sql
+EXCLUDE USING gist (
+    vehicle_id WITH =,
+    tstzrange(starts_at, ends_at, '[)') WITH &&
+) WHERE (status <> 2)
+```
+
+The service check exists to produce a decent error message. It cannot be correct on its own -
+between its `SELECT` and its `INSERT`, another transaction can commit a conflicting booking, and
+under load it will. The constraint is what makes the rule true. `DoubleBookingTests` fires two
+genuinely parallel bookings at the same window and asserts exactly one success and one conflict;
+run it and watch.
+
+Note `'[)'` - the range is half-open, matching `BookingWindow.Overlaps` in C# exactly. If those two
+ever disagree, the database starts rejecting rows the service was happy with.
+
+**`RowVersion` is Postgres' `xmin`.** Every row already carries the id of the transaction that last
+wrote it, so optimistic concurrency costs no extra column and nothing for the application to
+remember to increment. The DTO exposes it base64-encoded, which is what an `ETag` is built from:
+
+```
+GET  /bookings/{id}     ->  ETag: "AAAC7A=="
+PUT  /bookings/{id}     <-  If-Match: "AAAC7A=="
+```
+
+Pass it back as `ExpectedRowVersion` and a stale value returns `Conflict` instead of silently
+overwriting whoever got there first. The service accepts quoted and weak (`W/"..."`) forms, so an
+`If-Match` header can go through unmodified. Whether your endpoint *requires* `If-Match` or merely
+honours it is your call - and worth arguing about before you decide.
 
 ## Working with migrations
 

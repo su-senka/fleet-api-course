@@ -1,4 +1,6 @@
 using Fleet.Common;
+using Fleet.Modules.Drivers;
+using Fleet.Modules.Vehicles;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,9 +30,12 @@ public sealed class BookingsModuleRegistrationTests
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // The same two calls a host makes, in the same order. The shared kernel first, because
-        // modules depend on what it registers - IClock, for one.
+        // The same calls a host makes, in the same order. Bookings reads vehicles and drivers
+        // through their contracts, so registering it on its own leaves IVehicleCatalog and friends
+        // unresolvable - which is precisely what this test is here to notice.
         services.AddFleetCommon();
+        services.AddVehiclesModule(Configuration);
+        services.AddDriversModule(Configuration);
         services.AddBookingsModule(Configuration);
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions
