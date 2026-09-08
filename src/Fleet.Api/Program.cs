@@ -1,5 +1,6 @@
 using Fleet.Api.Hosting;
 using Fleet.Common;
+using Fleet.Common.Persistence;
 using Fleet.Modules.Bookings;
 using Fleet.Modules.Drivers;
 using Fleet.Modules.Maintenance;
@@ -46,6 +47,26 @@ if (builder.Environment.IsDevelopment())
 }
 
 var app = builder.Build();
+
+// In Development, bring the schemas up to date and seed them on the way in, so that a fresh
+// clone is one `docker compose up` and one `dotnet run` away from 250 vehicles to query.
+// `dotnet run -- --seed` does the same and exits, which is what `make seed` uses.
+var seedOnly = args.Contains("--seed", StringComparer.OrdinalIgnoreCase);
+
+// Set Database:Initialize to false to start the host against a database you do not want it to
+// touch - which is exactly what the integration tests do.
+var initializeDatabase = seedOnly
+    || (app.Environment.IsDevelopment() && app.Configuration.GetValue("Database:Initialize", true));
+
+if (initializeDatabase)
+{
+    await app.InitializeModulesAsync(seed: true);
+}
+
+if (seedOnly)
+{
+    return;
+}
 
 app.UseFleetRequestLogging();
 

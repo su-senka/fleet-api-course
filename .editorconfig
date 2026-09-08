@@ -69,6 +69,14 @@ dotnet_diagnostic.CA1848.severity = none
 # CA1727: enforces PascalCase log template placeholders. We use them, but not worth an error.
 dotnet_diagnostic.CA1727.severity = suggestion
 
+# EF Core writes migrations with block-scoped namespaces and its own formatting, and rewrites them
+# whenever the model changes. Style-policing generated code means hand-editing it after every
+# `dotnet ef migrations add`, so it is marked as what it is.
+[**/Persistence/Migrations/*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+
 [tests/**/*.cs]
 # Test classes do not need to be culture-aware or documented.
 dotnet_diagnostic.CA1861.severity = none

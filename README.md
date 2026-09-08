@@ -29,9 +29,14 @@ Two hosts run side by side:
 docker compose up -d --wait     # or: make up
 dotnet build Fleet.sln
 dotnet test Fleet.sln
+dotnet run --project src/Fleet.Api -- --seed   # migrate and load the seed data, then exit
 dotnet run --project src/Fleet.Api             # reference API on :5100
 dotnet run --project src/Fleet.Api.Workshop    # your API on :5101
 ```
+
+Either host migrates and seeds on startup in Development, so the explicit `--seed` run is only
+needed when you want a populated database without leaving an API running. Set
+`Database:Initialize` to `false` to start a host that leaves the database alone.
 
 `--wait` blocks until every container reports healthy, which takes about a minute on a cold
 start — mostly Keycloak importing the realm. Then open <http://localhost:5101/scalar> and admire
@@ -125,6 +130,42 @@ assignment has something real to defend against. Its behaviour is set by environ
 
 Every decision it makes is logged, so you can line its log up against your circuit breaker's and
 see exactly which request opened it.
+
+## The seed data
+
+`make reset` gives you the same database every time: same ids, same plates, same drivers. That
+matters because a `.http` file with an id in it keeps working, and because two people comparing
+screens are looking at the same rows.
+
+| | Count | Worth knowing |
+|---|---|---|
+| Depots | 4 | Praha, Brno, Ostrava, Plzen |
+| Vehicles | 250 | ~25 in maintenance and ~13 retired, so the status filter has something to find |
+| Odometer readings | 15,000 | 60 per vehicle over 18 months, strictly increasing |
+| Drivers | 60 | Three of them can sign in - see the Keycloak table above |
+| Certificates | 177 | Licences, medicals and ADR, some superseded by renewals |
+
+Among the drivers, four hold no licence at all, five hold one that has expired, and six hold one
+expiring within the next 30 days. Those fifteen are the reason the eligibility rule is worth
+testing, and the last six are what a `CertificateExpiringSoon` scan is supposed to find.
+
+Ids come from `DeterministicGuid`, which hashes a name into a stable GUID, so the Bookings seeder
+can refer to `vehicle:42` without reading the `vehicles` schema. Dates are the one thing measured
+relative to *today* rather than fixed: a licence that expired last year would stop being an
+interesting test case the moment the calendar moved past it.
+
+## Working with migrations
+
+Each module owns its migrations and its own `__ef_migrations_history` table, inside its own schema.
+Each has a design-time factory, so no startup project is involved:
+
+```bash
+dotnet ef migrations add <Name> --project src/Modules/Vehicles/Fleet.Modules.Vehicles
+dotnet ef migrations has-pending-model-changes --project src/Modules/Drivers/Fleet.Modules.Drivers
+```
+
+Migrations are generated code and exempt from the style rules in `.editorconfig`. Do not hand-edit
+them to satisfy a formatter.
 
 ## Repository layout
 

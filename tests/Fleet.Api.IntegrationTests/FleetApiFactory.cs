@@ -9,9 +9,9 @@ namespace Fleet.Api.IntegrationTests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The infrastructure connection strings are blanked out so that the host does not try to reach
-/// Postgres, Azurite or the supplier during a build. That keeps the current tests runnable on a
-/// laptop with Docker stopped.
+/// The infrastructure connection strings are blanked out, and <c>Database:Initialize</c> is turned
+/// off so the host does not try to migrate or seed on the way up. That keeps the current tests
+/// runnable on a laptop with Docker stopped.
 /// </para>
 /// <para>
 /// Milestone 6 replaces the blanks with a Testcontainers Postgres instance, at which point the
@@ -27,6 +27,7 @@ public sealed class FleetApiFactory : WebApplicationFactory<Program>
         builder.ConfigureAppConfiguration(configuration =>
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
+                ["Database:Initialize"] = "false",
                 ["ConnectionStrings:Fleet"] = string.Empty,
                 ["ConnectionStrings:Blobs"] = string.Empty,
                 ["Supplier:BaseUrl"] = string.Empty,
