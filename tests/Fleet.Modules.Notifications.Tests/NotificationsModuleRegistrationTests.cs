@@ -1,3 +1,4 @@
+using Fleet.Common;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -27,6 +28,9 @@ public sealed class NotificationsModuleRegistrationTests
         var services = new ServiceCollection();
         services.AddLogging();
 
+        // The same two calls a host makes, in the same order. The shared kernel first, because
+        // modules depend on what it registers - IClock, for one.
+        services.AddFleetCommon();
         services.AddNotificationsModule(Configuration);
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions

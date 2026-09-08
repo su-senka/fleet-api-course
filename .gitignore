@@ -1,6 +1,10 @@
 # Build output
 bin/
 obj/
+
+# On macOS and Linux, `dotnet ef` can create a directory whose name literally contains a
+# backslash - "bin\Debug" as one path segment - which the bin/ rule above does not match.
+*\*
 [Dd]ebug/
 [Rr]elease/
 artifacts/

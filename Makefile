@@ -27,8 +27,8 @@ reset: ## Destroy every volume, start clean, then migrate and reseed
 	@$(MAKE) --no-print-directory seed
 
 .PHONY: seed
-seed: ## Apply migrations and load the seed data
-	@echo "Seeding arrives with the Vehicles and Drivers modules in milestone 2."
+seed: ## Apply migrations and load the seed data, then exit
+	dotnet run --project src/Fleet.Api -- --seed
 
 .PHONY: ports
 ports: ## Show where everything is listening
