@@ -37,3 +37,8 @@ Thumbs.db
 
 # Local data volumes (docker compose uses named volumes, but just in case)
 .data/
+
+# AI assistant instructions/config - not part of the shipped repo
+CLAUDE.md
+.claude/
+.mcp.json
