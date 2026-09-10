@@ -1,3 +1,4 @@
+using Fleet.Api.Workshop.Endpoints;
 using Fleet.Api.Workshop.Hosting;
 using Fleet.Common;
 using Fleet.Common.Persistence;
@@ -129,7 +130,7 @@ app.MapFleetHealthChecks();
 // -------------------------------------------------------------------------------------------
 // Your endpoints get mapped here, one call per resource, as you write them.
 //
-//   app.MapDepotEndpoints();          TODO(week-1)
+app.MapDepotEndpoints();
 //   app.MapVehicleEndpoints();        TODO(week-2)
 //   app.MapDriverEndpoints();         TODO(week-4)
 //   app.MapCertificateEndpoints();    TODO(week-6)
