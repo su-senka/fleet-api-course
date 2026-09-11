@@ -38,6 +38,17 @@ public interface IVehicleService
         FilterRequest filter,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Every vehicle, unpaged, ordered by plate number.
+    /// </summary>
+    /// <remarks>
+    /// Week 2 asks for a flat, unpaged <c>GET /vehicles</c>, and <see cref="PageRequest.MaxPageSize"/>
+    /// caps a single page at 100 - fewer than the 250 seeded vehicles - so the paged overload above
+    /// cannot serve that request in one call. This overload exists for that reason alone; week 3
+    /// adds paging to the endpoint and this method stops being called.
+    /// </remarks>
+    Task<Result<IReadOnlyList<VehicleDto>>> ListAsync(CancellationToken cancellationToken = default);
+
     /// <summary>One vehicle, with its depot. <see cref="ErrorKind.NotFound"/> when the id is unknown.</summary>
     Task<Result<VehicleDetailDto>> GetAsync(Guid vehicleId, CancellationToken cancellationToken = default);
 

@@ -59,6 +59,24 @@ internal sealed class VehicleService(VehiclesDbContext dbContext) : IVehicleServ
         return new PagedResult<VehicleDto>(items, page.Page, page.PageSize, totalCount);
     }
 
+    public async Task<Result<IReadOnlyList<VehicleDto>>> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var vehicles = await dbContext.Vehicles
+            .AsNoTracking()
+            .OrderBy(vehicle => vehicle.Plate)
+            .Select(vehicle => new VehicleDto(
+                vehicle.Id,
+                vehicle.Plate,
+                vehicle.Type,
+                vehicle.Status,
+                vehicle.OdometerKm,
+                vehicle.DepotId,
+                vehicle.Depot!.Name))
+            .ToListAsync(cancellationToken);
+
+        return Result<IReadOnlyList<VehicleDto>>.Success(vehicles);
+    }
+
     public async Task<Result<VehicleDetailDto>> GetAsync(
         Guid vehicleId,
         CancellationToken cancellationToken = default)

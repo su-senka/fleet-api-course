@@ -1,3 +1,6 @@
+using Fleet.Api.Workshop.Http;
+using Fleet.Modules.Vehicles.Contracts;
+
 namespace Fleet.Api.Workshop.Endpoints;
 
 /// <summary>
@@ -23,10 +26,36 @@ namespace Fleet.Api.Workshop.Endpoints;
 /// </remarks>
 internal static class VehicleEndpoints
 {
-    // TODO(week-2): map GET /vehicles and GET /vehicles/{vehicleId}.
     // TODO(week-3): add paging, filtering and sorting to the list.
     // TODO(week-4): add POST /vehicles and PUT /vehicles/{vehicleId}/status.
-    //
-    // See docs/assignments/week-2.md, week-3.md and week-4.md.
-    // The finished version is src/Fleet.Api/Endpoints/VehicleEndpoints.cs.
+
+    public static void MapVehicleEndpoints(this IEndpointRouteBuilder routes)
+    {
+        var group = routes.MapGroup("/vehicles").WithTags("Vehicles");
+
+        group.MapGet("/", ListAsync)
+            .WithName("ListVehicles")
+            .WithSummary("Every vehicle")
+            .Produces<IReadOnlyList<VehicleDto>>();
+
+        group.MapGet("/{vehicleId:guid}", GetAsync)
+            .WithName("GetVehicle")
+            .WithSummary("One vehicle")
+            .Produces<VehicleDetailDto>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+    }
+
+    private static async Task<IResult> ListAsync(IVehicleService vehicles, HttpContext http)
+    {
+        var result = await vehicles.ListAsync(http.RequestAborted);
+
+        return result.Match(http, Results.Ok);
+    }
+
+    private static async Task<IResult> GetAsync(Guid vehicleId, IVehicleService vehicles, HttpContext http)
+    {
+        var result = await vehicles.GetAsync(vehicleId, http.RequestAborted);
+
+        return result.Match(http, Results.Ok);
+    }
 }

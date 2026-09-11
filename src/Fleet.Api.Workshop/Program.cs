@@ -131,7 +131,7 @@ app.MapFleetHealthChecks();
 // Your endpoints get mapped here, one call per resource, as you write them.
 //
 app.MapDepotEndpoints();
-//   app.MapVehicleEndpoints();        TODO(week-2)
+app.MapVehicleEndpoints();
 //   app.MapDriverEndpoints();         TODO(week-4)
 //   app.MapCertificateEndpoints();    TODO(week-6)
 //   app.MapBookingEndpoints();        TODO(week-7)
