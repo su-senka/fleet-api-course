@@ -1,3 +1,8 @@
+using Fleet.Api.Workshop.Http;
+using Fleet.Api.Workshop.Requests;
+using Fleet.Common.Paging;
+using Fleet.Modules.Drivers.Contracts;
+
 namespace Fleet.Api.Workshop.Endpoints;
 
 /// <summary>
@@ -21,11 +26,71 @@ namespace Fleet.Api.Workshop.Endpoints;
 /// </remarks>
 internal static class DriverEndpoints
 {
-    // TODO(week-4): map GET /drivers, GET /drivers/{driverId} and POST /drivers.
     // TODO(week-5): reject a malformed request before it reaches the module, and return the
     //               failures in one RFC 9457 document rather than one at a time.
     //
-    // See docs/assignments/week-4.md and week-5.md.
-    // Fleet.Api has no Drivers endpoints - this one is yours from scratch. The shape to follow is
-    // src/Fleet.Api/Endpoints/VehicleEndpoints.cs.
+
+    /// <summary>
+    /// Same trick as <see cref="VehicleEndpoints"/>: an unsupported <c>sort</c> field is a
+    /// well-formed request the service still cannot carry out, so it gets 422 instead of the
+    /// shared 400 mapping.
+    /// </summary>
+    private const string _unsupportedSortFieldCode = "driver.sort_field_unknown";
+
+    public static void MapDriverEndpoints(this IEndpointRouteBuilder routes)
+    {
+        var group = routes.MapGroup("/drivers").WithTags("Drivers");
+
+        group.MapGet("/", ListAsync)
+            .WithName("ListDrivers")
+            .WithSummary("Every driver")
+            .Produces<PagedResult<DriverDto>>()
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+
+        group.MapGet("/{driverId:guid}", GetAsync)
+            .WithName("GetDriver")
+            .WithSummary("One driver")
+            .Produces<DriverDetailDto>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapPost("/", RegisterAsync)
+            .WithName("RegisterDriver")
+            .WithSummary("Add a driver")
+            .Produces<DriverDetailDto>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+    }
+
+    private static async Task<IResult> ListAsync(IDriverService drivers, HttpContext http)
+    {
+        var result = await drivers.ListAsync(
+            http.Request.ReadPage(),
+            http.Request.ReadSort(),
+            http.Request.ReadFilter(),
+            http.RequestAborted);
+
+        return result.Match(
+            Results.Ok,
+            error => error.Code == _unsupportedSortFieldCode
+                ? ProblemResults.From(error, http, StatusCodes.Status422UnprocessableEntity)
+                : ProblemResults.From(error, http));
+    }
+
+    private static async Task<IResult> GetAsync(Guid driverId, IDriverService drivers, HttpContext http)
+    {
+        var result = await drivers.GetAsync(driverId, http.RequestAborted);
+
+        return result.Match(http, Results.Ok);
+    }
+
+    private static async Task<IResult> RegisterAsync(
+        RegisterDriverRequest request,
+        IDriverService drivers,
+        HttpContext http)
+    {
+        var command = new RegisterDriverCommand(request.EmployeeNumber, request.Name, request.UserId);
+        var result = await drivers.RegisterAsync(command, http.RequestAborted);
+
+        return result.Match(http, driver => Results.CreatedAtRoute(
+            "GetDriver", new { driverId = driver.Id }, driver));
+    }
 }

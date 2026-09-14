@@ -1,4 +1,5 @@
 using Fleet.Api.Workshop.Http;
+using Fleet.Api.Workshop.Requests;
 using Fleet.Common.Paging;
 using Fleet.Modules.Vehicles.Contracts;
 
@@ -27,8 +28,6 @@ namespace Fleet.Api.Workshop.Endpoints;
 /// </remarks>
 internal static class VehicleEndpoints
 {
-    // TODO(week-4): add POST /vehicles and PUT /vehicles/{vehicleId}/status.
-
     /// <summary>
     /// The stable code <c>VehicleQueries.ApplySort</c> reports when <c>sort</c> names a field the
     /// service does not recognize. Everything else this endpoint can fail with stays on the shared
@@ -52,6 +51,20 @@ internal static class VehicleEndpoints
             .WithSummary("One vehicle")
             .Produces<VehicleDetailDto>()
             .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapPost("/", RegisterAsync)
+            .WithName("RegisterVehicle")
+            .WithSummary("Add a vehicle to the fleet")
+            .Produces<VehicleDetailDto>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        group.MapPut("/{vehicleId:guid}/status", ChangeStatusAsync)
+            .WithName("ChangeStatus")
+            .WithSummary("Change vehicle status")
+            .Produces<VehicleDetailDto>()
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
     }
 
     private static async Task<IResult> ListAsync(IVehicleService vehicles, HttpContext http)
@@ -72,6 +85,28 @@ internal static class VehicleEndpoints
     private static async Task<IResult> GetAsync(Guid vehicleId, IVehicleService vehicles, HttpContext http)
     {
         var result = await vehicles.GetAsync(vehicleId, http.RequestAborted);
+
+        return result.Match(http, Results.Ok);
+    }
+
+    private static async Task<IResult> RegisterAsync(RegisterVehicleRequest request,
+        IVehicleService vehicles,
+        HttpContext http)
+    {
+        var command = new RegisterVehicleCommand(request.Plate, request.Type, request.DepotId, request.OdometerKm);
+        var result = await vehicles.RegisterAsync(command, http.RequestAborted);
+
+        return result.Match(http, vehicle => Results.CreatedAtRoute("GetVehicle",
+            new { vehicleId = vehicle.Id }, vehicle));
+    }
+
+    private static async Task<IResult> ChangeStatusAsync(
+        Guid vehicleId,
+        ChangeVehicleStatusRequest request,
+        IVehicleService vehicles,
+        HttpContext http)
+    {
+        var result = await vehicles.ChangeStatusAsync(vehicleId, request.Status, http.RequestAborted);
 
         return result.Match(http, Results.Ok);
     }

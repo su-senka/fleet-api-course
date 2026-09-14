@@ -132,7 +132,7 @@ app.MapFleetHealthChecks();
 //
 app.MapDepotEndpoints();
 app.MapVehicleEndpoints();
-//   app.MapDriverEndpoints();         TODO(week-4)
+app.MapDriverEndpoints();
 //   app.MapCertificateEndpoints();    TODO(week-6)
 //   app.MapBookingEndpoints();        TODO(week-7)
 //   app.MapWorkOrderEndpoints();      TODO(week-12)
