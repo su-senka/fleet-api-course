@@ -1,4 +1,5 @@
 using Fleet.Api.Workshop.Http;
+using Fleet.Common.Paging;
 using Fleet.Modules.Vehicles.Contracts;
 
 namespace Fleet.Api.Workshop.Endpoints;
@@ -26,8 +27,15 @@ namespace Fleet.Api.Workshop.Endpoints;
 /// </remarks>
 internal static class VehicleEndpoints
 {
-    // TODO(week-3): add paging, filtering and sorting to the list.
     // TODO(week-4): add POST /vehicles and PUT /vehicles/{vehicleId}/status.
+
+    /// <summary>
+    /// The stable code <c>VehicleQueries.ApplySort</c> reports when <c>sort</c> names a field the
+    /// service does not recognize. Everything else this endpoint can fail with stays on the shared
+    /// <see cref="ProblemResults" /> mapping (400); this one code is deliberately elevated to 422 -
+    /// the request is well-formed, it just cannot be carried out as asked.
+    /// </summary>
+    private const string _unsupportedSortFieldCode = "vehicle.sort_field_unknown";
 
     public static void MapVehicleEndpoints(this IEndpointRouteBuilder routes)
     {
@@ -36,7 +44,8 @@ internal static class VehicleEndpoints
         group.MapGet("/", ListAsync)
             .WithName("ListVehicles")
             .WithSummary("Every vehicle")
-            .Produces<IReadOnlyList<VehicleDto>>();
+            .Produces<PagedResult<VehicleDto>>()
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
 
         group.MapGet("/{vehicleId:guid}", GetAsync)
             .WithName("GetVehicle")
@@ -47,9 +56,17 @@ internal static class VehicleEndpoints
 
     private static async Task<IResult> ListAsync(IVehicleService vehicles, HttpContext http)
     {
-        var result = await vehicles.ListAsync(http.RequestAborted);
+        var result = await vehicles.ListAsync(
+            http.Request.ReadPage(),
+            http.Request.ReadSort(),
+            http.Request.ReadFilter(),
+            http.RequestAborted);
 
-        return result.Match(http, Results.Ok);
+        return result.Match(
+            Results.Ok,
+            error => error.Code == _unsupportedSortFieldCode
+                ? ProblemResults.From(error, http, StatusCodes.Status422UnprocessableEntity)
+                : ProblemResults.From(error, http));
     }
 
     private static async Task<IResult> GetAsync(Guid vehicleId, IVehicleService vehicles, HttpContext http)

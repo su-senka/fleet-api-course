@@ -32,7 +32,12 @@ internal static class ProblemResults
         _ => "Unexpected error",
     };
 
-    public static IResult From(Error error, HttpContext httpContext)
+    /// <param name="statusCode">
+    /// Overrides the status code the <see cref="ErrorKind"/> would otherwise map to. Use sparingly:
+    /// it is meant for the rare case where one specific error code needs a different status than
+    /// every other error of the same kind, not as a way to route around <see cref="StatusCodeFor"/>.
+    /// </param>
+    public static IResult From(Error error, HttpContext httpContext, int? statusCode = null)
     {
         var extensions = new Dictionary<string, object?> { ["code"] = error.Code };
         if (error.Details.Count > 0)
@@ -44,7 +49,7 @@ internal static class ProblemResults
         {
             Type = _problemTypeBase + error.Code,
             Title = TitleFor(error.Kind),
-            Status = StatusCodeFor(error.Kind),
+            Status = statusCode ?? StatusCodeFor(error.Kind),
             Detail = error.Message,
             Instance = $"{httpContext.Request.Method} {httpContext.Request.Path}",
             Extensions = extensions,
