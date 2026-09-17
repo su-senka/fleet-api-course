@@ -22,20 +22,20 @@ internal static class DriversSeedData
     /// employee numbers line up with the <c>employee_number</c> claim in <c>realm-export.json</c>.
     /// Sign in as any of them and you are a real row in this table.
     /// </summary>
-    private static readonly Dictionary<int, (string Name, string UserId)> KeycloakDrivers = new()
+    private static readonly Dictionary<int, (string Name, string UserId)> _keycloakDrivers = new()
     {
         [3] = ("Martin Dvorak", "driver.dvorak"),
         [4] = ("Lucie Cerna", "driver.cerna"),
         [5] = ("Jakub Prochazka", "driver.prochazka"),
     };
 
-    private static readonly string[] GivenNames =
+    private static readonly string[] _givenNames =
     [
         "Petr", "Jana", "Martin", "Tomas", "Jakub", "Eva", "Pavel", "Michal", "Jiri", "David",
         "Lucie", "Hana", "Katerina", "Marie", "Lenka", "Veronika", "Tereza", "Josef", "Milan", "Zdenek",
     ];
 
-    private static readonly string[] FamilyNames =
+    private static readonly string[] _familyNames =
     [
         "Novak", "Svoboda", "Dvorak", "Cerny", "Prochazka", "Kucera", "Vesely", "Horak", "Nemec", "Marek",
         "Pospisil", "Pokorny", "Hajek", "Kral", "Jelinek", "Ruzicka", "Benes", "Fiala", "Sedlacek", "Dolezal",
@@ -43,16 +43,16 @@ internal static class DriversSeedData
     ];
 
     /// <summary>Drivers who hold no licence at all. They must not be bookable.</summary>
-    private static readonly int[] DriversWithoutLicence = [17, 34, 41, 58];
+    private static readonly int[] _driversWithoutLicence = [17, 34, 41, 58];
 
     /// <summary>Drivers whose licence expired some time ago. They must not be bookable either.</summary>
-    private static readonly int[] DriversWithExpiredLicence = [7, 22, 29, 46, 51];
+    private static readonly int[] _driversWithExpiredLicence = [7, 22, 29, 46, 51];
 
     /// <summary>
     /// Drivers whose licence expires within the next 30 days. These are what the week's expiry
     /// scan is supposed to find, so there needs to be a known number of them.
     /// </summary>
-    private static readonly int[] DriversWithLicenceExpiringSoon = [2, 13, 26, 38, 44, 55];
+    private static readonly int[] _driversWithLicenceExpiringSoon = [2, 13, 26, 38, 44, 55];
 
     /// <summary>
     /// Builds every driver with their certificates.
@@ -68,9 +68,9 @@ internal static class DriversSeedData
         {
             var employeeNumber = $"EMP-{1001 + index:0000}";
 
-            var (name, userId) = KeycloakDrivers.TryGetValue(index, out var known)
+            var (name, userId) = _keycloakDrivers.TryGetValue(index, out var known)
                 ? known
-                : ($"{GivenNames[index % GivenNames.Length]} {FamilyNames[index % FamilyNames.Length]}", null);
+                : ($"{_givenNames[index % _givenNames.Length]} {_familyNames[index % _familyNames.Length]}", null);
 
             var created = Driver.Register(
                 DeterministicGuid.Create("driver", index),
@@ -99,7 +99,7 @@ internal static class DriversSeedData
         DateTimeOffset anchor,
         Random random)
     {
-        var holdsLicence = !DriversWithoutLicence.Contains(index);
+        var holdsLicence = !_driversWithoutLicence.Contains(index);
 
         // The historical licence goes in first. AddCertificate supersedes whatever is current when
         // it runs, so the row added last is the one that counts - add these the other way round
@@ -160,12 +160,12 @@ internal static class DriversSeedData
 
     private static DateOnly LicenceExpiry(int index, DateOnly today, Random random)
     {
-        if (DriversWithExpiredLicence.Contains(index))
+        if (_driversWithExpiredLicence.Contains(index))
         {
             return today.AddDays(-random.Next(10, 400));
         }
 
-        if (DriversWithLicenceExpiringSoon.Contains(index))
+        if (_driversWithLicenceExpiringSoon.Contains(index))
         {
             // Inside the 30-day window, and never today itself, so the boundary cases in the
             // expiry tests stay under the tests' own control rather than the seed's.

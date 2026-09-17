@@ -26,10 +26,6 @@ namespace Fleet.Api.Workshop.Endpoints;
 /// </remarks>
 internal static class DriverEndpoints
 {
-    // TODO(week-5): reject a malformed request before it reaches the module, and return the
-    //               failures in one RFC 9457 document rather than one at a time.
-    //
-
     /// <summary>
     /// Same trick as <see cref="VehicleEndpoints"/>: an unsupported <c>sort</c> field is a
     /// well-formed request the service still cannot carry out, so it gets 422 instead of the
@@ -56,6 +52,7 @@ internal static class DriverEndpoints
         group.MapPost("/", RegisterAsync)
             .WithName("RegisterDriver")
             .WithSummary("Add a driver")
+            .WithValidation<RegisterDriverRequest>()
             .Produces<DriverDetailDto>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status409Conflict);
     }

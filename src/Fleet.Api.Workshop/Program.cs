@@ -8,6 +8,7 @@ using Fleet.Modules.Maintenance;
 using Fleet.Modules.Notifications;
 using Fleet.Modules.Reporting;
 using Fleet.Modules.Vehicles;
+using FluentValidation;
 using Scalar.AspNetCore;
 
 // -------------------------------------------------------------------------------------------
@@ -54,11 +55,9 @@ builder.Services.AddNotificationsModule(builder.Configuration);
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
-// TODO(week-5): register your FluentValidation validators here.
-//   builder.Services.AddValidatorsFromAssemblyContaining<Program>(
-//       ServiceLifetime.Singleton, includeInternalTypes: true);
-// See docs/assignments/week-5.md. Note includeInternalTypes - without it, internal validators
-// are silently not registered and the failure arrives at the first request rather than at startup.
+// Register Fluent Validation validators
+builder.Services.AddValidatorsFromAssemblyContaining<Program>(
+    ServiceLifetime.Singleton, includeInternalTypes: true);
 
 // TODO(week-7): add JWT bearer authentication against the Keycloak realm.
 //   builder.AddFleetAuthentication();
