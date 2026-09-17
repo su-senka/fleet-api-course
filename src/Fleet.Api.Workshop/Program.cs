@@ -56,8 +56,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
 // Register Fluent Validation validators
-builder.Services.AddValidatorsFromAssemblyContaining<Program>(
-    ServiceLifetime.Singleton, includeInternalTypes: true);
+builder.Services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton, includeInternalTypes: true);
 
 // TODO(week-7): add JWT bearer authentication against the Keycloak realm.
 //   builder.AddFleetAuthentication();
@@ -88,7 +87,7 @@ var app = builder.Build();
 // `dotnet run -- --seed` does the same and exits, which is what `make seed` uses.
 var seedOnly = args.Contains("--seed", StringComparer.OrdinalIgnoreCase);
 
-// Set Database:Initialize to false to start the host against a database you do not want it to
+// Set Database: Initialize as false to start the host against a database you do not want it to
 // touch - which is exactly what the integration tests do.
 var initializeDatabase = seedOnly
     || (app.Environment.IsDevelopment() && app.Configuration.GetValue("Database:Initialize", true));
@@ -132,7 +131,8 @@ app.MapFleetHealthChecks();
 app.MapDepotEndpoints();
 app.MapVehicleEndpoints();
 app.MapDriverEndpoints();
-//   app.MapCertificateEndpoints();    TODO(week-6)
+app.MapCertificateEndpoints();
+
 //   app.MapBookingEndpoints();        TODO(week-7)
 //   app.MapWorkOrderEndpoints();      TODO(week-12)
 //   app.MapReportEndpoints();         TODO(week-13)

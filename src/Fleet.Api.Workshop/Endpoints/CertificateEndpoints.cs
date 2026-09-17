@@ -1,3 +1,8 @@
+using Fleet.Api.Workshop.Http;
+using Fleet.Api.Workshop.Requests;
+using Fleet.Common.Storage;
+using Fleet.Modules.Drivers.Contracts;
+
 namespace Fleet.Api.Workshop.Endpoints;
 
 /// <summary>
@@ -19,10 +24,77 @@ namespace Fleet.Api.Workshop.Endpoints;
 /// </remarks>
 internal static class CertificateEndpoints
 {
-    // TODO(week-6): map GET /drivers/{driverId}/certificates and POST to the same path.
-    // TODO(week-6): serve the scan - GET /drivers/{driverId}/certificates/{certificateId}/scan.
-    //
-    // See docs/assignments/week-6.md.
-    // Note that a driver with no certificates and a driver who does not exist are different
-    // answers: one is an empty list, the other is a 404.
+    public static void MapCertificateEndpoints(this IEndpointRouteBuilder routes)
+    {
+        var group = routes.MapGroup("/drivers/{driverId}/certificates").WithTags("Certificates");
+
+        group.MapGet("/", ListCertificatesAsync)
+            .WithName("ListDriverCertificates")
+            .WithSummary("List all certificates of a driver")
+            .Produces<IReadOnlyList<CertificateDto>>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        group.MapPost("/", AddCertificateAsync)
+            .WithName("AddCertificate")
+            .WithSummary("Add a certificate to a driver")
+            .WithValidation<AddCertificateRequest>()
+            .Produces<CertificateDto>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        group.MapGet("/{certificateId:guid}/scan", GetScanAsync)
+            .WithName("GetCertificateScan")
+            .WithSummary("Download a certificate's scanned document")
+            .ProducesProblem(StatusCodes.Status404NotFound);
+    }
+
+    private static async Task<IResult> ListCertificatesAsync(Guid driverId, IDriverService drivers, HttpContext http)
+    {
+        var result = await drivers.ListCertificatesAsync(driverId, http.RequestAborted);
+
+        return result.Match(http, Results.Ok);
+    }
+
+    private static async Task<IResult> AddCertificateAsync(
+        Guid driverId,
+        AddCertificateRequest request,
+        IDriverService drivers,
+        HttpContext http)
+    {
+        var command = new AddCertificateCommand(
+            request.Kind, request.Number, request.IssuedOn, request.ExpiresOn, request.ScanBlobId);
+
+        var result = await drivers.AddCertificateAsync(driverId, command, http.RequestAborted);
+
+        return result.Match(http, certificate => Results.Created(
+            $"/drivers/{driverId}/certificates/{certificate.Id}", certificate));
+    }
+
+    private static async Task<IResult> GetScanAsync(
+        Guid driverId,
+        Guid certificateId,
+        IDriverService drivers,
+        IBlobStore blobs,
+        HttpContext http)
+    {
+        var certificates = await drivers.ListCertificatesAsync(driverId, http.RequestAborted);
+        if (certificates.IsFailure)
+        {
+            return ProblemResults.From(certificates.Error, http);
+        }
+
+        var certificate = certificates.Value.FirstOrDefault(c => c.Id == certificateId);
+        if (certificate?.ScanBlobId is null)
+        {
+            return Results.NotFound();
+        }
+
+        var blob = await blobs.GetAsync(certificate.ScanBlobId, http.RequestAborted);
+        if (blob is null)
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Stream(blob.Content, blob.ContentType, blob.FileName);
+    }
 }
