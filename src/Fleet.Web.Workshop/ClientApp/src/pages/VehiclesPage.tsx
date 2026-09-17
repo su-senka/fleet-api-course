@@ -1,3 +1,30 @@
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router';
+import { vehiclesApi } from '../api/clients/vehicles';
+
+// `type` and `status` arrive as numbers on the wire (see api/contracts.ts). The mapping lives
+// here, next to the only page that renders them, rather than in the API client - nothing else
+// in this app needs a label.
+const typeLabels: Record<number, string> = {
+  1: 'Car',
+  2: 'Van',
+  3: 'Truck',
+  4: 'Bus',
+};
+
+const statusLabels: Record<number, string> = {
+  1: 'Available',
+  2: 'In maintenance',
+  3: 'Retired',
+};
+
+// The values the API's status filter accepts - the VehicleStatus enum's own names, not numbers.
+const statusOptions: Array<{ value: string; label: string }> = [
+  { value: 'Available', label: 'Available' },
+  { value: 'InMaintenance', label: 'In maintenance' },
+  { value: 'Retired', label: 'Retired' },
+];
+
 /**
  * Vehicles: the page you write.
  *
@@ -5,26 +32,100 @@
  * and the UI have to agree with each other. See docs/react-client/week-1.md.
  */
 export function VehiclesPage() {
-  // TODO(week-1): render one page of vehicles from vehiclesApi.list().
-  //
-  // Handle the same three states DepotsPage does - pending, error, empty - and then the list.
-  // Beyond that, three decisions that are the actual content of this page:
-  //
-  //  1. Where does the current page number live? React state is the obvious answer and the
-  //     wrong one: a user who reloads, or shares the link, loses their place. The query string
-  //     is the browser's own state container. react-router's useSearchParams reads and writes it.
-  //
-  //  2. What happens to the old rows while page 2 loads? A list that disappears and comes back
-  //     flickers. React Query's placeholderData (keepPreviousData) keeps the previous page on
-  //     screen while the next one is in flight - read what it does to `isPending` first.
-  //
-  //  3. `type` and `status` arrive as numbers (see api/contracts.ts). Print them as labels.
-  //     Whether that mapping belongs here, in the client at all, or should have been strings on
-  //     the wire is a question worth an opinion in your PR.
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // The query string is the state container for page and status, not React state - a reload or a
+  // shared link has to land the reader exactly where they were.
+  const page = Number(searchParams.get('page') ?? '1');
+  const status = searchParams.get('status') ?? '';
+
+  const { data, isPending, isPlaceholderData, error } = useQuery({
+    // Both page and status belong in the key - leave either out and a change to it would keep
+    // serving a cached response for the wrong request.
+    queryKey: ['vehicles', { page, status }],
+    queryFn: () => vehiclesApi.list({ page, status: status || undefined }),
+    // Keeps the previous page's rows on screen while the next page is in flight, instead of the
+    // list flashing back to "Loading…" on every click.
+    placeholderData: keepPreviousData,
+  });
+
+  function goToPage(nextPage: number) {
+    const params = new URLSearchParams(searchParams);
+    params.set('page', String(nextPage));
+    setSearchParams(params);
+  }
+
+  function changeStatus(nextStatus: string) {
+    const params = new URLSearchParams(searchParams);
+    if (nextStatus) params.set('status', nextStatus);
+    else params.delete('status');
+    // A different filter makes the old page number meaningless - page 7 of a different filter is
+    // not page 7 of anything - so it resets rather than carries over.
+    params.delete('page');
+    setSearchParams(params);
+  }
+
+  if (isPending) return <p>Loading vehicles…</p>;
+
+  // `error` is the ApiError from api/http.ts, so this message is the API's own `detail` string
+  // rather than "Failed to fetch".
+  if (error) return <p role="alert">Could not load vehicles: {error.message}</p>;
+
   return (
     <main>
       <h1>Vehicles</h1>
-      <p>Not built yet.</p>
+
+      <label>
+        Status:{' '}
+        <select value={status} onChange={(event) => changeStatus(event.target.value)}>
+          <option value="">All</option>
+          {statusOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {data.items.length === 0 ? (
+        <p>No vehicles match this filter.</p>
+      ) : (
+        <table aria-busy={isPlaceholderData} style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
+          <thead>
+            <tr>
+              <th>Plate</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Odometer (km)</th>
+              <th>Depot</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.items.map((vehicle) => (
+              <tr key={vehicle.id}>
+                <td>{vehicle.plate}</td>
+                <td>{typeLabels[vehicle.type] ?? vehicle.type}</td>
+                <td>{statusLabels[vehicle.status] ?? vehicle.status}</td>
+                <td>{vehicle.odometerKm.toLocaleString()}</td>
+                <td>{vehicle.depotName}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <nav>
+        <button disabled={!data.hasPreviousPage} onClick={() => goToPage(data.page - 1)}>
+          Previous
+        </button>
+        <span>
+          {' '}
+          Page {data.page} of {data.totalPages}{' '}
+        </span>
+        <button disabled={!data.hasNextPage} onClick={() => goToPage(data.page + 1)}>
+          Next
+        </button>
+      </nav>
     </main>
   );
 }
