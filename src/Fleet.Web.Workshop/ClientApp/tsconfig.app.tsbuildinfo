@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/api/contracts.ts","./src/api/http.ts","./src/api/clients/vehicles.ts","./src/auth/requireauth.tsx","./src/auth/types.ts","./src/auth/useuser.ts","./src/pages/depotspage.tsx","./src/pages/vehiclespage.tsx","./src/test/setup.ts"],"version":"5.8.3"}

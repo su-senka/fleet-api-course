@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    The React course's host - a BFF (backend for frontend).
+
+    It is not an API. It owns the browser session, signs the user in against the same Keycloak
+    realm the Fleet API trusts, and proxies /api to the Fleet API with the user's access token
+    attached. The browser never sees a token; it only ever holds an HttpOnly cookie.
+
+    The React application lives beside it in ClientApp/ and is served by this host in production.
+    In development Vite serves it on :5174 and proxies /bff and /api back here.
+
+    Deliberately not in Fleet.sln: it is a separate course with a separate arc, and adding it
+    would make a solution build depend on npm. Run it directly, pointing dotnet run at this
+    project file. See docs/react-client/README.md for the two commands the dev loop needs.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Fleet.Web.Workshop</RootNamespace>
+    <UserSecretsId>fleet-web-workshop</UserSecretsId>
+    <SpaRoot>ClientApp\</SpaRoot>
+    <!-- Set -p:SkipClientBuild=true when the SPA is built separately (e.g. a Docker node stage). -->
+    <SkipClientBuild Condition="'$(SkipClientBuild)' == ''">false</SkipClientBuild>
+  </PropertyGroup>
+
+  <ItemGroup Label="BFF">
+    <!-- TODO(week-2): both of these are already referenced, but nothing uses them until you
+         write the OIDC wiring and the proxy. See docs/react-client/week-2.md. -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
+    <PackageReference Include="Yarp.ReverseProxy" />
+  </ItemGroup>
+
+  <ItemGroup Label="SPA files are npm's business, not MSBuild's">
+    <Content Remove="$(SpaRoot)**" />
+    <None Remove="$(SpaRoot)**" />
+    <None Include="$(SpaRoot)**" Exclude="$(SpaRoot)node_modules\**;$(SpaRoot)dist\**" />
+  </ItemGroup>
+
+  <!--
+    On publish, build the SPA and copy dist/ into wwwroot/ so one artefact contains both halves.
+    `npm ci` needs package-lock.json, which appears the first time you run `npm install`.
+  -->
+  <Target Name="BuildClientApp" AfterTargets="ComputeFilesToPublish" Condition="'$(SkipClientBuild)' != 'true'">
+    <Exec WorkingDirectory="$(SpaRoot)" Command="npm ci" />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="npm run build" />
+    <ItemGroup>
+      <DistFiles Include="$(SpaRoot)dist\**" />
+      <ResolvedFileToPublish Include="@(DistFiles->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">
+        <RelativePath>wwwroot\%(RecursiveDir)%(FileName)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+</Project>
