@@ -16,24 +16,36 @@ export function DepotsPage() {
     queryFn: depotsApi.list,
   });
 
-  if (isPending) return <p>Loading depots…</p>;
+  if (isPending) return <p className="state-message">Loading depots…</p>;
 
   // `error` is the ApiError from api/http.ts, so this message is the API's own `detail` string
   // rather than "Failed to fetch".
-  if (error) return <p role="alert">Could not load depots: {error.message}</p>;
-
-  if (data.length === 0) return <p>No depots.</p>;
+  if (error) {
+    return (
+      <p className="state-message" role="alert">
+        Could not load depots: {error.message}
+      </p>
+    );
+  }
 
   return (
-    <main>
-      <h1>Depots</h1>
-      <ul>
-        {data.map((depot) => (
-          <li key={depot.id}>
-            {depot.name} — {depot.city}
-          </li>
-        ))}
-      </ul>
+    <main className="container page">
+      <div className="page-header">
+        <h1>Depots</h1>
+      </div>
+
+      {data.length === 0 ? (
+        <p className="state-message">No depots.</p>
+      ) : (
+        <div className="depot-grid">
+          {data.map((depot) => (
+            <div key={depot.id} className="card depot-card">
+              <h3>{depot.name}</h3>
+              <p>{depot.city}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

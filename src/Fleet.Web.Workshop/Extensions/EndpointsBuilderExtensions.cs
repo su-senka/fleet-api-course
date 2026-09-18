@@ -1,3 +1,8 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+
 namespace Fleet.Web.Workshop.Extensions;
 
 /// <summary>
@@ -12,25 +17,56 @@ internal static class EndpointsBuilderExtensions
 {
     public static void MapBffEndpoints(this WebApplication app)
     {
-        // TODO(week-2): GET /bff/login?returnUrl=... - issue an OIDC challenge, then come back to
-        // returnUrl. Allow anonymous, obviously.
-        //
-        // Validate returnUrl before you use it. An absolute URL here turns your login endpoint
-        // into an open redirect: an attacker sends a victim to your own trusted domain and lands
-        // them on theirs, post-authentication. Accept only paths beginning with a single "/" -
-        // and note that "//evil.example" also begins with "/".
+        // Keycloak redirects the browser back to whatever is registered as the client's
+        // redirect/post-logout URI - this host, always, never Vite. A *relative* RedirectUri
+        // from there would resolve against this host too, and in development this host has no
+        // SPA to show. Anchor it at Vite's origin in development; in production there is only
+        // one origin, this is empty, and every redirect stays relative exactly as before.
+        var spaOrigin = app.Configuration["Spa:DevServerOrigin"] ?? "";
 
-        // TODO(week-2): GET /bff/logout - sign out of both the cookie and OIDC, so the user is
-        // signed out of Keycloak too rather than being silently signed straight back in.
-        // Requires an authenticated session.
+        app.MapGet("/bff/login", (string? returnUrl) =>
+            {
+                var path = IsLocalReturnUrl(returnUrl) ? returnUrl! : "/";
+                return Results.Challenge(
+                    new AuthenticationProperties { RedirectUri = spaOrigin + path },
+                    [OpenIdConnectDefaults.AuthenticationScheme]);
+            })
+            .AllowAnonymous();
 
-        // TODO(week-2): GET /bff/user - the current session as JSON, or 401 when anonymous.
-        // Allow anonymous: "am I signed in?" must be answerable by someone who is not.
-        //
-        // Return only what the UI needs to render itself - a display name, the roles. This is
-        // not an authorization boundary and must never be treated as one: it decides which menu
-        // items appear, while the API decides what actually happens. A client that hides a button
-        // has not secured anything.
-        _ = app;
+        app.MapGet("/bff/logout", async (HttpContext context) =>
+            {
+                await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                await context.SignOutAsync(
+                    OpenIdConnectDefaults.AuthenticationScheme,
+                    new AuthenticationProperties { RedirectUri = spaOrigin + "/" });
+            })
+            .RequireAuthorization();
+
+        app.MapGet("/bff/user", (ClaimsPrincipal user) =>
+            {
+                if (user.Identity is not { IsAuthenticated: true })
+                {
+                    return Results.Unauthorized();
+                }
+
+                var name = user.FindFirst("name")?.Value
+                    ?? user.FindFirst("preferred_username")?.Value
+                    ?? user.Identity.Name;
+                var roles = user.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray();
+
+                return Results.Ok(new { name, roles });
+            })
+            .AllowAnonymous();
     }
+
+    /// <summary>
+    /// Accepts only paths beginning with a single "/". An absolute URL here would turn
+    /// <c>/bff/login</c> into an open redirect, and "//evil.example" also begins with "/", so a
+    /// leading slash alone is not enough.
+    /// </summary>
+    private static bool IsLocalReturnUrl(string? returnUrl) =>
+        !string.IsNullOrEmpty(returnUrl)
+        && returnUrl.StartsWith('/')
+        && !returnUrl.StartsWith("//", StringComparison.Ordinal)
+        && !returnUrl.StartsWith("/\\", StringComparison.Ordinal);
 }

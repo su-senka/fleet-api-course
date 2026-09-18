@@ -1,6 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RouterProvider, createBrowserRouter } from 'react-router';
+import { Outlet, RouterProvider, createBrowserRouter } from 'react-router';
+import { RequireAuth } from './auth/RequireAuth';
+import { TopBar } from './components/TopBar';
 import { DepotsPage } from './pages/DepotsPage';
+import { HomePage } from './pages/HomePage';
 import { VehiclesPage } from './pages/VehiclesPage';
 
 /**
@@ -21,10 +24,47 @@ const queryClient = new QueryClient({
   },
 });
 
+// TopBar renders NavLink, which needs router context - so it lives inside this layout route
+// rather than beside <RouterProvider>, where that context does not reach it.
+function Layout() {
+  return (
+    <>
+      <TopBar />
+      <Outlet />
+    </>
+  );
+}
+
 const router = createBrowserRouter([
-  { path: '/', element: <DepotsPage /> },
-  { path: '/vehicles', element: <VehiclesPage /> },
-  // TODO(week-2): wrap the routes that need a session in <RequireAuth>, and add the sign-in page.
+  {
+    element: <Layout />,
+    children: [
+      {
+        path: '/',
+        element: (
+          <RequireAuth>
+            <HomePage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: '/depots',
+        element: (
+          <RequireAuth>
+            <DepotsPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: '/vehicles',
+        element: (
+          <RequireAuth>
+            <VehiclesPage />
+          </RequireAuth>
+        ),
+      },
+    ],
+  },
 ]);
 
 export function App() {

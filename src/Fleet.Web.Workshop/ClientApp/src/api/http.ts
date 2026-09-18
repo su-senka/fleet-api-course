@@ -28,9 +28,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
     headers: {
-      // TODO(week-2): the BFF rejects any /api call without this header. Until the CSRF
-      // middleware exists it changes nothing, so add it now and understand it in week 2.
-      //   'X-CSRF': '1',
+      // Proves the request came from our own JavaScript, not a cross-site form post
+      'X-CSRF': '1',
       ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
       ...init?.headers,
     },

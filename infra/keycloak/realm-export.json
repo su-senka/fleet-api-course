@@ -64,6 +64,38 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "fleet-web",
+      "name": "Fleet Web (BFF)",
+      "description": "The BFF host for the React course. Confidential: it holds the OIDC client secret and the session server-side, so the secret and the resulting tokens never reach the browser.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "fleet-web-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:5180/signin-oidc",
+        "http://localhost:5180/signout-callback-oidc"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "+"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "fleet-api",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "users": [

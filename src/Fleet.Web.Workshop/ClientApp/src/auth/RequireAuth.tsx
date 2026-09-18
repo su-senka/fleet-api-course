@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { SignInPage } from '../pages/SignInPage';
 import { useUser } from './useUser';
 
 /**
@@ -15,12 +16,11 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   // Render nothing rather than the sign-in page while the answer is still unknown: flashing a
   // "please sign in" at an already-authenticated user is the most common bug in this component.
   if (isLoading) {
-    return <p>Loading…</p>;
+    return <p className="state-message">Loading…</p>;
   }
 
   if (!user) {
-    // TODO(week-2): render the sign-in page here, which calls login() from ./useUser.
-    return <p>Not signed in.</p>;
+    return <SignInPage />;
   }
 
   return <>{children}</>;

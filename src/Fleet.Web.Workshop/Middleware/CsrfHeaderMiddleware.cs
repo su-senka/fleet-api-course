@@ -11,7 +11,7 @@ namespace Fleet.Web.Workshop.Middleware;
 /// price of the BFF pattern and the reason this file exists.
 /// </para>
 /// <para>
-/// The defence is a custom request header. A cross-site form post or a top-level navigation
+/// The defense is a custom request header. A cross-site form post or a top-level navigation
 /// cannot set one - only JavaScript running on our own origin can, and the same-origin policy
 /// stops anyone else's JavaScript from doing so. So the header's mere presence is the proof.
 /// Its value carries no information and does not need to; requiring a specific value would
@@ -24,12 +24,23 @@ internal sealed class CsrfHeaderMiddleware(RequestDelegate next)
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // TODO(week-2): reject any request under /api that does not carry X-CSRF: 1, with a 400
-        // and a small JSON body saying which header is missing. Everything else passes through
-        // untouched - this guard is about the proxied API, not about static files or /bff.
-        //
-        // Think about why 400 and not 401 or 403: the caller is not unauthenticated and not
-        // forbidden, they have sent a request this host will not process as written.
+        if (context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+        {
+            var header = context.Request.Headers[HeaderName];
+            if (header is not ["1"])
+            {
+                // Not 401 or 403: the caller is neither unauthenticated nor forbidden, they have
+                // sent a request this host will not process as written.
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    title = "Missing required header",
+                    detail = $"Requests to /api must include the '{HeaderName}' header.",
+                });
+                return;
+            }
+        }
+
         await next(context);
     }
 }

@@ -1,13 +1,15 @@
+using System.Net.Http.Headers;
+using Fleet.Web.Workshop.Auth;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Yarp.ReverseProxy.Transforms;
+
 namespace Fleet.Web.Workshop.Extensions;
 
 /// <summary>
 /// Everything this host registers, in three parts: a session, a policy, and a proxy.
 /// </summary>
-/// <remarks>
-/// Read <c>TaskTracker/src/TT.Web/Extensions/ServiceCollectionExtensions.cs</c> afterwards if you
-/// have it to hand - it is the same three parts against a different identity provider, and the
-/// comparison is the point.
-/// </remarks>
 internal static class ServiceCollectionExtensions
 {
     public static void AddPresentation(this IServiceCollection services, IConfiguration configuration)
@@ -23,42 +25,70 @@ internal static class ServiceCollectionExtensions
 
     private static void AddAuthentication(IServiceCollection services, IConfiguration configuration)
     {
-        // TODO(week-2): bind OidcSettings from the Authentication:Oidc section and throw if it is
-        // missing. A host that starts with no identity provider configured and only fails at the
-        // first sign-in is a host that fails in front of a user rather than in front of you.
+        var oidcSettings = configuration.GetSection(OidcSettings.SectionName).Get<OidcSettings>()
+            ?? throw new InvalidOperationException(
+                $"Missing required configuration section '{OidcSettings.SectionName}'.");
 
-        // TODO(week-2): AddAuthentication with three schemes that are not the same thing:
-        //   DefaultScheme          the cookie  - how an *existing* session is read
-        //   DefaultChallengeScheme OIDC        - what happens when there isn't one
-        //   DefaultSignOutScheme   OIDC        - so signing out here also signs out of Keycloak
-        //
-        // Getting DefaultScheme wrong is the classic BFF bug: every request re-challenges, the
-        // user bounces to Keycloak on every click, and the session appears never to stick.
+        var isDevelopment = string.Equals(
+            configuration["ASPNETCORE_ENVIRONMENT"],
+            Environments.Development,
+            StringComparison.OrdinalIgnoreCase);
 
-        // TODO(week-2): AddCookie. Four settings decide whether this is a session or a liability:
-        //   HttpOnly     - JavaScript must not be able to read it. This is the whole point.
-        //   SameSite     - Lax. The OIDC callback is a top-level GET redirect, and Lax sends the
-        //                  cookie on those while still blocking cross-site POSTs.
-        //   SecurePolicy - SameAsRequest locally (Keycloak is plain HTTP); Always in production.
-        //   Name         - anything stable. The __Host- prefix buys real guarantees over HTTPS.
-        //
-        // And two events, which are the reason a SPA can use this at all:
-        //   OnRedirectToLogin        -> 401, never a redirect to an HTML login page
-        //   OnRedirectToAccessDenied -> 403
-        // An XHR that receives a 302 to Keycloak cannot follow it usefully; it either fails CORS
-        // or silently returns Keycloak's HTML as if it were your JSON. The SPA needs a status code
-        // it can branch on - which is exactly what src/auth/useUser.ts does with the 401.
+        services.AddAuthentication(options =>
+            {
+                options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+                options.DefaultSignOutScheme = OpenIdConnectDefaults.AuthenticationScheme;
+            })
+            .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
+            {
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SameSite = SameSiteMode.Lax;
+                options.Cookie.SecurePolicy = isDevelopment
+                    ? CookieSecurePolicy.SameAsRequest
+                    : CookieSecurePolicy.Always;
 
-        // TODO(week-2): AddOpenIdConnect against the fleet realm.
-        //   ResponseType = code                  authorization code flow, never implicit
-        //   ResponseMode = query                 keeps the callback a top-level GET so Lax works
-        //   SaveTokens   = true                  the proxy needs the access token later
-        //   Scope        = from configuration    openid, profile, and whatever the API audience needs
-        //
-        // Note what is NOT here: no token ever reaches the browser. The cookie is the credential
-        // on that side; the token only exists between this host and the API.
-        _ = services;
-        _ = configuration;
+                // The __Host- prefix demands the Secure attribute on every cookie carrying it,
+                // which a plain-HTTP local Keycloak round trip cannot satisfy.
+                options.Cookie.Name = isDevelopment ? "fleet-web-session" : "__Host-fleet-web-session";
+
+                options.Events.OnRedirectToLogin = context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return Task.CompletedTask;
+                };
+
+                options.Events.OnRedirectToAccessDenied = context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    return Task.CompletedTask;
+                };
+            })
+            .AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, options =>
+            {
+                options.MetadataAddress = oidcSettings.MetadataAddress;
+                options.ClientId = oidcSettings.ClientId;
+                options.ClientSecret = oidcSettings.ClientSecret;
+                options.RequireHttpsMetadata = oidcSettings.RequireHttpsMetadata;
+
+                options.ResponseType = "code";
+                options.ResponseMode = "query";
+                options.SaveTokens = true;
+
+                // These default to Secure regardless of environment, on the assumption that OIDC
+                // always runs over HTTPS. Locally it does not: Keycloak's redirect back to
+                // /signin-oidc is a plain-HTTP request, a Secure cookie cannot travel on it, and
+                // the handler fails with "Correlation failed" before it ever reads the code.
+                var cookieSecurePolicy = isDevelopment ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+                options.CorrelationCookie.SecurePolicy = cookieSecurePolicy;
+                options.NonceCookie.SecurePolicy = cookieSecurePolicy;
+
+                options.Scope.Clear();
+                foreach (var scope in oidcSettings.Scopes)
+                {
+                    options.Scope.Add(scope);
+                }
+            });
     }
 
     // -------------------------------------------------------------------------
@@ -67,12 +97,17 @@ internal static class ServiceCollectionExtensions
 
     private static void AddAuthorization(IServiceCollection services)
     {
-        // TODO(week-2): add the ApiProxy policy - authenticated user, pinned to the cookie scheme.
-        //
-        // Pinning the scheme is what makes an anonymous XHR fail fast with 401 (through
-        // OnRedirectToLogin above) instead of being challenged into an OIDC redirect it cannot
-        // follow. Leave the scheme unpinned and the failure mode is confusing rather than loud.
-        _ = services;
+        services.AddAuthorization(options =>
+        {
+            // Pinning the scheme is what makes an anonymous XHR fail fast with 401 (through
+            // OnRedirectToLogin above) instead of being challenged into an OIDC redirect it
+            // cannot follow.
+            options.AddPolicy(PolicyNames.ApiProxy, policy =>
+            {
+                policy.AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme);
+                policy.RequireAuthenticatedUser();
+            });
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -81,15 +116,19 @@ internal static class ServiceCollectionExtensions
 
     private static void AddApiProxy(IServiceCollection services, IConfiguration configuration)
     {
-        // TODO(week-2): AddReverseProxy().LoadFromConfig(configuration.GetSection("ReverseProxy"))
-        // and add a request transform that reads the access token out of the session
-        // (HttpContext.GetTokenAsync("access_token")) and puts it on the outbound request as
-        // Authorization: Bearer.
-        //
-        // This transform is the join between the two halves of the whole course: the browser
-        // holds a cookie, the Fleet API you wrote in week 7 of the API course accepts a bearer
-        // token, and this is the one place that turns one into the other.
-        _ = services;
-        _ = configuration;
+        services.AddReverseProxy()
+            .LoadFromConfig(configuration.GetSection("ReverseProxy"))
+            .AddTransforms(transformBuilderContext =>
+            {
+                transformBuilderContext.AddRequestTransform(async transformContext =>
+                {
+                    var accessToken = await transformContext.HttpContext.GetTokenAsync("access_token");
+                    if (!string.IsNullOrEmpty(accessToken))
+                    {
+                        transformContext.ProxyRequest.Headers.Authorization =
+                            new AuthenticationHeaderValue("Bearer", accessToken);
+                    }
+                });
+            });
     }
 }

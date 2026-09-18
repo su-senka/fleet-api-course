@@ -18,6 +18,12 @@ const statusLabels: Record<number, string> = {
   3: 'Retired',
 };
 
+const statusBadgeClass: Record<number, string> = {
+  1: 'badge badge--available',
+  2: 'badge badge--maintenance',
+  3: 'badge badge--retired',
+};
+
 // The values the API's status filter accepts - the VehicleStatus enum's own names, not numbers.
 const statusOptions: Array<{ value: string; label: string }> = [
   { value: 'Available', label: 'Available' },
@@ -65,64 +71,93 @@ export function VehiclesPage() {
     setSearchParams(params);
   }
 
-  if (isPending) return <p>Loading vehicles…</p>;
+  if (isPending) return <p className="state-message">Loading vehicles…</p>;
 
   // `error` is the ApiError from api/http.ts, so this message is the API's own `detail` string
   // rather than "Failed to fetch".
-  if (error) return <p role="alert">Could not load vehicles: {error.message}</p>;
+  if (error) {
+    return (
+      <p className="state-message" role="alert">
+        Could not load vehicles: {error.message}
+      </p>
+    );
+  }
 
   return (
-    <main>
-      <h1>Vehicles</h1>
+    <main className="container page">
+      <div className="page-header">
+        <h1>Vehicles</h1>
+      </div>
 
-      <label>
-        Status:{' '}
-        <select value={status} onChange={(event) => changeStatus(event.target.value)}>
-          <option value="">All</option>
-          {statusOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="filters">
+        <label>
+          Status
+          <select
+            className="select"
+            value={status}
+            onChange={(event) => changeStatus(event.target.value)}
+          >
+            <option value="">All</option>
+            {statusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       {data.items.length === 0 ? (
-        <p>No vehicles match this filter.</p>
+        <p className="state-message">No vehicles match this filter.</p>
       ) : (
-        <table aria-busy={isPlaceholderData} style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
-          <thead>
-            <tr>
-              <th>Plate</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Odometer (km)</th>
-              <th>Depot</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((vehicle) => (
-              <tr key={vehicle.id}>
-                <td>{vehicle.plate}</td>
-                <td>{typeLabels[vehicle.type] ?? vehicle.type}</td>
-                <td>{statusLabels[vehicle.status] ?? vehicle.status}</td>
-                <td>{vehicle.odometerKm.toLocaleString()}</td>
-                <td>{vehicle.depotName}</td>
+        <div className="table-wrap">
+          <table className="table" aria-busy={isPlaceholderData} style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
+            <thead>
+              <tr>
+                <th>Plate</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Odometer (km)</th>
+                <th>Depot</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.items.map((vehicle) => (
+                <tr key={vehicle.id}>
+                  <td>{vehicle.plate}</td>
+                  <td>{typeLabels[vehicle.type] ?? vehicle.type}</td>
+                  <td>
+                    <span className={statusBadgeClass[vehicle.status] ?? 'badge'}>
+                      {statusLabels[vehicle.status] ?? vehicle.status}
+                    </span>
+                  </td>
+                  <td>{vehicle.odometerKm.toLocaleString()}</td>
+                  <td>{vehicle.depotName}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      <nav>
-        <button disabled={!data.hasPreviousPage} onClick={() => goToPage(data.page - 1)}>
+      <nav className="pager">
+        <button
+          type="button"
+          className="button"
+          disabled={!data.hasPreviousPage}
+          onClick={() => goToPage(data.page - 1)}
+        >
           Previous
         </button>
         <span>
-          {' '}
-          Page {data.page} of {data.totalPages}{' '}
+          Page {data.page} of {data.totalPages}
         </span>
-        <button disabled={!data.hasNextPage} onClick={() => goToPage(data.page + 1)}>
+        <button
+          type="button"
+          className="button"
+          disabled={!data.hasNextPage}
+          onClick={() => goToPage(data.page + 1)}
+        >
           Next
         </button>
       </nav>
