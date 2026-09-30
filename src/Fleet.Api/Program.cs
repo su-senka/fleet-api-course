@@ -116,11 +116,13 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 
 // Order matters, and this is the order:
-//   caching before auth would serve one user's response to another;
+//   caching before auth would serve one user's response to another - or, worse, serve an
+//   authenticated caller's cached response to nobody at all, since the cache middleware would
+//   short-circuit the pipeline before auth ever runs;
 //   idempotency after auth, so an unauthenticated request never claims a key.
-app.UseOutputCache();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseOutputCache();
 app.UseFleetIdempotency();
 
 app.MapFleetHealthChecks();

@@ -1,4 +1,5 @@
 using Fleet.Common.Persistence;
+using Fleet.Common.Storage;
 using Fleet.Common.Time;
 using Fleet.Modules.Drivers.Seeding;
 using Microsoft.EntityFrameworkCore;
@@ -10,8 +11,10 @@ namespace Fleet.Modules.Drivers.Persistence;
 internal sealed class DriversDatabaseInitializer(
     DriversDbContext dbContext,
     IClock clock,
+    IBlobStore blobStore,
     ILogger<DriversDatabaseInitializer> logger) : IModuleDatabaseInitializer
 {
+    private const string CertificatesContainer = "certificates";
     public string ModuleName => DriversDbContext.Schema;
 
     /// <summary>After Vehicles, before Bookings.</summary>
@@ -28,14 +31,30 @@ internal sealed class DriversDatabaseInitializer(
             return;
         }
 
-        var drivers = DriversSeedData.BuildDrivers(clock.UtcNow);
+        var seed = DriversSeedData.BuildDrivers(clock.UtcNow);
 
-        dbContext.Drivers.AddRange(drivers);
+        foreach (var scan in seed.Scans)
+        {
+            var content = PlaceholderPdf.Build($"{scan.Certificate.Kind} scan - {scan.FileName}");
+            await using var stream = new MemoryStream(content);
+
+            var blobId = await blobStore.SaveAsync(
+                CertificatesContainer,
+                scan.FileName,
+                stream,
+                "application/pdf",
+                cancellationToken);
+
+            scan.Certificate.AttachScan(blobId);
+        }
+
+        dbContext.Drivers.AddRange(seed.Drivers);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
-            "Seeded {DriverCount} drivers and {CertificateCount} certificates",
-            drivers.Count,
-            drivers.Sum(driver => driver.Certificates.Count));
+            "Seeded {DriverCount} drivers, {CertificateCount} certificates, and {ScanCount} certificate scans",
+            seed.Drivers.Count,
+            seed.Drivers.Sum(driver => driver.Certificates.Count),
+            seed.Scans.Count);
     }
 }

@@ -2,6 +2,7 @@ using Fleet.Common;
 using Fleet.Common.Persistence;
 using Fleet.Common.Results;
 using Fleet.Common.Seeding;
+using Fleet.Common.Storage;
 using Fleet.Modules.Bookings.Contracts;
 using Fleet.Modules.Bookings.Domain;
 using Fleet.Modules.Bookings.Persistence;
@@ -244,6 +245,11 @@ public sealed class DoubleBookingTests(PostgresFixture postgres) : IClassFixture
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Warning));
         services.AddFleetCommon();
+
+        // Drivers seeds certificate scans into blob storage. There is no Azurite here, so an
+        // in-memory stand-in is enough - these tests are about double-booking, not blob storage.
+        services.AddSingleton<IBlobStore, InMemoryBlobStore>();
+
         services.AddVehiclesModule(configuration);
         services.AddDriversModule(configuration);
         services.AddBookingsModule(configuration);

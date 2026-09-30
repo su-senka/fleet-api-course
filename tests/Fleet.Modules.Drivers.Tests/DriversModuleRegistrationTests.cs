@@ -19,6 +19,7 @@ public sealed class DriversModuleRegistrationTests
         {
             ["ConnectionStrings:Fleet"] =
                 "Host=localhost;Port=5432;Database=fleet;Username=fleet;Password=fleet",
+            ["ConnectionStrings:Blobs"] = "UseDevelopmentStorage=true",
         })
         .Build();
 
@@ -28,9 +29,11 @@ public sealed class DriversModuleRegistrationTests
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // The same two calls a host makes, in the same order. The shared kernel first, because
-        // modules depend on what it registers - IClock, for one.
+        // The same calls a host makes, in the same order. The shared kernel first, because
+        // modules depend on what it registers - IClock, for one. Drivers seeds certificate scans
+        // into blob storage, so infrastructure has to be there too.
         services.AddFleetCommon();
+        services.AddFleetInfrastructure(Configuration);
         services.AddDriversModule(Configuration);
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions

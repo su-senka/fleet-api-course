@@ -15,7 +15,7 @@ public sealed class DriversSeedDataTests
     [Fact]
     public void It_produces_sixty_drivers_and_the_certificate_volume_the_brief_asks_for()
     {
-        var drivers = DriversSeedData.BuildDrivers(Anchor);
+        var drivers = DriversSeedData.BuildDrivers(Anchor).Drivers;
         var certificates = drivers.SelectMany(driver => driver.Certificates).Count();
 
         Assert.Equal(60, drivers.Count);
@@ -28,8 +28,8 @@ public sealed class DriversSeedDataTests
     [Fact]
     public void It_produces_the_same_rows_every_time()
     {
-        var first = DriversSeedData.BuildDrivers(Anchor);
-        var second = DriversSeedData.BuildDrivers(Anchor);
+        var first = DriversSeedData.BuildDrivers(Anchor).Drivers;
+        var second = DriversSeedData.BuildDrivers(Anchor).Drivers;
 
         Assert.Equal(
             first.Select(driver => (driver.Id, driver.EmployeeNumber, driver.Name)),
@@ -39,7 +39,7 @@ public sealed class DriversSeedDataTests
     [Fact]
     public void Employee_numbers_are_unique()
     {
-        var drivers = DriversSeedData.BuildDrivers(Anchor);
+        var drivers = DriversSeedData.BuildDrivers(Anchor).Drivers;
 
         Assert.Equal(
             drivers.Count,
@@ -51,7 +51,7 @@ public sealed class DriversSeedDataTests
     {
         // These line up with realm-export.json. Sign in as driver.dvorak and this is your row -
         // which is what makes "a driver reads only their own bookings" demonstrable at all.
-        var drivers = DriversSeedData.BuildDrivers(Anchor);
+        var drivers = DriversSeedData.BuildDrivers(Anchor).Drivers;
 
         var withLogins = drivers.Where(driver => driver.UserId is not null).ToList();
 
@@ -67,7 +67,7 @@ public sealed class DriversSeedDataTests
     [Fact]
     public void Some_drivers_have_no_licence_at_all()
     {
-        var drivers = DriversSeedData.BuildDrivers(Anchor);
+        var drivers = DriversSeedData.BuildDrivers(Anchor).Drivers;
 
         var withoutLicence = drivers
             .Where(driver => driver.Certificates.All(c => c.Kind != CertificateKind.Licence))
@@ -80,7 +80,7 @@ public sealed class DriversSeedDataTests
     [Fact]
     public void Some_drivers_have_an_expired_licence()
     {
-        var drivers = DriversSeedData.BuildDrivers(Anchor);
+        var drivers = DriversSeedData.BuildDrivers(Anchor).Drivers;
 
         var expired = drivers
             .Where(driver =>
@@ -96,7 +96,7 @@ public sealed class DriversSeedDataTests
     {
         // The window the CertificateExpiringSoon scan uses. If the seed has nothing in it, the
         // week-N assignment about that event has nothing to show.
-        var drivers = DriversSeedData.BuildDrivers(Anchor);
+        var drivers = DriversSeedData.BuildDrivers(Anchor).Drivers;
 
         var expiringSoon = drivers
             .SelectMany(driver => driver.Certificates)
@@ -115,7 +115,7 @@ public sealed class DriversSeedDataTests
     {
         // Guards the ordering bug where the historical licence is added last and quietly becomes
         // the current one, retiring a quarter of the fleet's drivers.
-        var drivers = DriversSeedData.BuildDrivers(Anchor);
+        var drivers = DriversSeedData.BuildDrivers(Anchor).Drivers;
 
         var renewed = drivers
             .Where(driver => driver.Certificates.Count(c => c.Kind == CertificateKind.Licence) > 1)
@@ -139,7 +139,7 @@ public sealed class DriversSeedDataTests
     [Fact]
     public void Most_drivers_can_actually_drive()
     {
-        var drivers = DriversSeedData.BuildDrivers(Anchor);
+        var drivers = DriversSeedData.BuildDrivers(Anchor).Drivers;
 
         var eligible = drivers.Count(driver => driver.CanDriveOn(Today));
 
@@ -147,13 +147,12 @@ public sealed class DriversSeedDataTests
     }
 
     [Fact]
-    public void Some_certificates_have_a_scan_and_some_do_not()
+    public void Some_certificates_are_marked_for_a_scan_and_some_are_not()
     {
-        var certificates = DriversSeedData.BuildDrivers(Anchor)
-            .SelectMany(driver => driver.Certificates)
-            .ToList();
+        var seed = DriversSeedData.BuildDrivers(Anchor);
+        var certificateCount = seed.Drivers.SelectMany(driver => driver.Certificates).Count();
 
-        Assert.Contains(certificates, certificate => certificate.ScanBlobId is not null);
-        Assert.Contains(certificates, certificate => certificate.ScanBlobId is null);
+        Assert.NotEmpty(seed.Scans);
+        Assert.True(seed.Scans.Count < certificateCount);
     }
 }

@@ -21,6 +21,7 @@ public sealed class BookingsModuleRegistrationTests
         {
             ["ConnectionStrings:Fleet"] =
                 "Host=localhost;Port=5432;Database=fleet;Username=fleet;Password=fleet",
+            ["ConnectionStrings:Blobs"] = "UseDevelopmentStorage=true",
         })
         .Build();
 
@@ -32,8 +33,10 @@ public sealed class BookingsModuleRegistrationTests
 
         // The same calls a host makes, in the same order. Bookings reads vehicles and drivers
         // through their contracts, so registering it on its own leaves IVehicleCatalog and friends
-        // unresolvable - which is precisely what this test is here to notice.
+        // unresolvable - which is precisely what this test is here to notice. Drivers seeds
+        // certificate scans into blob storage, so infrastructure has to be there too.
         services.AddFleetCommon();
+        services.AddFleetInfrastructure(Configuration);
         services.AddVehiclesModule(Configuration);
         services.AddDriversModule(Configuration);
         services.AddBookingsModule(Configuration);

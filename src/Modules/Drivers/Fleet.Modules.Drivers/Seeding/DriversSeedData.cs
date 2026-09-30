@@ -12,6 +12,15 @@ namespace Fleet.Modules.Drivers.Seeding;
 /// "expires in nine days" is still true next year. Everything else - ids, names, employee numbers,
 /// who holds what - is fixed.
 /// </remarks>
+/// <summary>
+/// A certificate the seed says has been scanned, paired with the file name its placeholder scan
+/// should be uploaded under.
+/// </summary>
+internal sealed record CertificateScan(Certificate Certificate, string FileName);
+
+/// <summary>Everything <see cref="DriversSeedData.BuildDrivers"/> produces.</summary>
+internal sealed record DriversSeedResult(IReadOnlyList<Driver> Drivers, IReadOnlyList<CertificateScan> Scans);
+
 internal static class DriversSeedData
 {
     public const int DriverCount = 60;
@@ -58,11 +67,12 @@ internal static class DriversSeedData
     /// Builds every driver with their certificates.
     /// </summary>
     /// <param name="anchor">"Today" for the purposes of seeding. Expiry dates are relative to it.</param>
-    public static IReadOnlyList<Driver> BuildDrivers(DateTimeOffset anchor)
+    public static DriversSeedResult BuildDrivers(DateTimeOffset anchor)
     {
         var random = new Random(RandomSeed);
         var today = DateOnly.FromDateTime(anchor.UtcDateTime);
         var drivers = new List<Driver>(DriverCount);
+        var scans = new List<CertificateScan>();
 
         for (var index = 0; index < DriverCount; index++)
         {
@@ -85,11 +95,11 @@ internal static class DriversSeedData
             }
 
             var driver = created.Value;
-            AddCertificates(driver, index, today, anchor, random);
+            AddCertificates(driver, index, today, anchor, random, scans);
             drivers.Add(driver);
         }
 
-        return drivers;
+        return new DriversSeedResult(drivers, scans);
     }
 
     private static void AddCertificates(
@@ -97,7 +107,8 @@ internal static class DriversSeedData
         int index,
         DateOnly today,
         DateTimeOffset anchor,
-        Random random)
+        Random random,
+        List<CertificateScan> scans)
     {
         var holdsLicence = !_driversWithoutLicence.Contains(index);
 
@@ -115,13 +126,14 @@ internal static class DriversSeedData
                 previousExpiry,
                 anchor,
                 random,
+                scans,
                 suffix: "old");
         }
 
         if (holdsLicence)
         {
             var expiresOn = LicenceExpiry(index, today, random);
-            Issue(driver, index, CertificateKind.Licence, expiresOn.AddYears(-10), expiresOn, anchor, random);
+            Issue(driver, index, CertificateKind.Licence, expiresOn.AddYears(-10), expiresOn, anchor, random, scans);
         }
 
         // A superseded medical for every third driver, again added before the current one. Medicals
@@ -137,6 +149,7 @@ internal static class DriversSeedData
                 previousExpiry,
                 anchor,
                 random,
+                scans,
                 suffix: "old");
         }
 
@@ -146,7 +159,7 @@ internal static class DriversSeedData
         if (index % 5 != 4)
         {
             var expiresOn = today.AddDays(random.Next(-40, 400));
-            Issue(driver, index, CertificateKind.Medical, expiresOn.AddYears(-2), expiresOn, anchor, random);
+            Issue(driver, index, CertificateKind.Medical, expiresOn.AddYears(-2), expiresOn, anchor, random, scans);
         }
 
         // ADR is a qualification two drivers in three hold. It never affects eligibility; it is
@@ -154,7 +167,7 @@ internal static class DriversSeedData
         if (index % 3 != 2)
         {
             var expiresOn = today.AddDays(random.Next(20, 900));
-            Issue(driver, index, CertificateKind.ADR, expiresOn.AddYears(-5), expiresOn, anchor, random);
+            Issue(driver, index, CertificateKind.ADR, expiresOn.AddYears(-5), expiresOn, anchor, random, scans);
         }
     }
 
@@ -183,6 +196,7 @@ internal static class DriversSeedData
         DateOnly expiresOn,
         DateTimeOffset anchor,
         Random random,
+        List<CertificateScan> scans,
         string suffix = "current")
     {
         var number = $"{kind.ToString().ToUpperInvariant()}-{random.Next(100_000, 999_999)}";
@@ -194,14 +208,20 @@ internal static class DriversSeedData
             issuedOn,
             expiresOn,
             // Only some certificates have been scanned. A null blob id is a perfectly ordinary
-            // state, and the endpoint that serves the scan has to cope with it.
-            scanBlobId: index % 3 == 0 ? $"certificates/{index}-{kind}.pdf".ToLowerInvariant() : null,
+            // state, and the endpoint that serves the scan has to cope with it. The blob itself is
+            // uploaded later, once the certificate id is known - see DriversDatabaseInitializer.
+            scanBlobId: null,
             at: anchor);
 
         if (issued.IsFailure)
         {
             throw new InvalidOperationException(
                 $"Seed data produced an invalid {kind} certificate for driver {index}: {issued.Error}");
+        }
+
+        if (index % 3 == 0)
+        {
+            scans.Add(new CertificateScan(issued.Value, $"{index}-{kind}.pdf".ToLowerInvariant()));
         }
     }
 }
