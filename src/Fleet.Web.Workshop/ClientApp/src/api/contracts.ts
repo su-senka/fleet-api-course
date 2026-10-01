@@ -34,15 +34,32 @@ export interface Depot {
 }
 
 /**
- * `type` and `status` arrive as numbers, not strings - the API serialises its enums by value.
- * A UI that prints `1` at the user is not finished; mapping those numbers to labels is part of
- * week 1, and deciding whether that mapping belongs on the client at all is worth an argument.
+ * The vehicle enums, as names rather than numbers.
+ *
+ * Both hosts register `JsonStringEnumConverter`, so `type` and `status` arrive as `"Van"` and
+ * `"InMaintenance"` - the enum's own names - from your API on :5101 and from the reference API on
+ * :5100 alike. Writing them as unions rather than `string` is the point: a typo in a filter value
+ * is then a compile error instead of a request that quietly returns nothing.
+ *
+ * These are still hand-written, which means nothing tells them when the server adds a fourth
+ * status. Week 5 replaces them with types generated from the OpenAPI document.
+ */
+export type VehicleType = 'Car' | 'Van' | 'Truck' | 'Bus';
+
+export type VehicleStatus = 'Available' | 'InMaintenance' | 'Retired';
+
+/**
+ * A vehicle as it appears in a list.
+ *
+ * Note that the names are not labels. `"InMaintenance"` is a value the API understands and will
+ * accept back as a query-string filter; "In maintenance" is prose for a human. Turning one into
+ * the other is presentation, and belongs in the page rather than here.
  */
 export interface Vehicle {
   id: string;
   plate: string;
-  type: number;
-  status: number;
+  type: VehicleType;
+  status: VehicleStatus;
   odometerKm: number;
   depotId: string;
   depotName: string;

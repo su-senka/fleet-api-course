@@ -402,3 +402,115 @@ p {
 .state-message[role='alert'] {
   color: var(--color-danger-text);
 }
+
+/* Forms -------------------------------------------------------------------- */
+
+/*
+  Provided ahead of week 3, which adds the first form in the application, so that neither week 3
+  nor week 4 turns into an afternoon of CSS. The shape these assume:
+
+    <form class="form">
+      <div class="field">
+        <label for="plate">Plate</label>
+        <input class="input" id="plate" aria-invalid="true" aria-describedby="plate-error" />
+        <p class="field__error" id="plate-error">...</p>
+      </div>
+      <p class="form-error" role="alert">...</p>  <- the form-level message
+      <div class="form__actions"> ... </div>
+    </form>
+
+  `aria-invalid` and `aria-describedby` are not decoration: they are how a screen reader learns
+  that a field was rejected and which sentence explains it. Week 4's reviewer checklist asks for
+  them.
+*/
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 480px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field > label {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.input {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.input:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(52, 87, 213, 0.18);
+}
+
+.input:disabled {
+  background: var(--color-surface-muted);
+  cursor: not-allowed;
+}
+
+/* Driven by aria-invalid rather than a class, so the styling cannot disagree with what a
+   screen reader is told. */
+.input[aria-invalid='true'] {
+  border-color: var(--color-danger-text);
+}
+
+.input[aria-invalid='true']:focus-visible {
+  box-shadow: 0 0 0 3px rgba(165, 42, 32, 0.18);
+}
+
+.field__error {
+  font-size: 0.875rem;
+  color: var(--color-danger-text);
+}
+
+.field__hint {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+/* The form-level message: a rejection that belongs to no single field - a 409, or an `errors`
+   key that matches nothing the form renders. */
+.form-error {
+  border: 1px solid var(--color-danger-text);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.9375rem;
+}
+
+.form-success {
+  border: 1px solid var(--color-success-text);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.9375rem;
+}
+
+.form__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}

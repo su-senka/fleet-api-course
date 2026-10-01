@@ -1,35 +1,33 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { vehiclesApi } from '../api/clients/vehicles';
+import type { VehicleStatus } from '../api/contracts';
 
-// `type` and `status` arrive as numbers on the wire (see api/contracts.ts). The mapping lives
-// here, next to the only page that renders them, rather than in the API client - nothing else
-// in this app needs a label.
-const typeLabels: Record<number, string> = {
-  1: 'Car',
-  2: 'Van',
-  3: 'Truck',
-  4: 'Bus',
+/*
+  `type` and `status` arrive as the enum's own names (see api/contracts.ts), so most of what a
+  label map used to do is already done. `type` needs no map at all - "Van" is what you would have
+  written anyway - and rendering it directly is one fewer thing to keep in step with the server.
+
+  `status` still needs one, because "InMaintenance" is a value and "In maintenance" is prose. That
+  is the honest reason a mapping exists here: not translation, typography. It lives next to the
+  only page that renders it rather than in the API client, because nothing else needs a label.
+*/
+const statusLabels: Record<VehicleStatus, string> = {
+  Available: 'Available',
+  InMaintenance: 'In maintenance',
+  Retired: 'Retired',
 };
 
-const statusLabels: Record<number, string> = {
-  1: 'Available',
-  2: 'In maintenance',
-  3: 'Retired',
+const statusBadgeClass: Record<VehicleStatus, string> = {
+  Available: 'badge badge--available',
+  InMaintenance: 'badge badge--maintenance',
+  Retired: 'badge badge--retired',
 };
 
-const statusBadgeClass: Record<number, string> = {
-  1: 'badge badge--available',
-  2: 'badge badge--maintenance',
-  3: 'badge badge--retired',
-};
-
-// The values the API's status filter accepts - the VehicleStatus enum's own names, not numbers.
-const statusOptions: Array<{ value: string; label: string }> = [
-  { value: 'Available', label: 'Available' },
-  { value: 'InMaintenance', label: 'In maintenance' },
-  { value: 'Retired', label: 'Retired' },
-];
+// The filter dropdown's options are the wire values themselves, paired with the labels above -
+// so the <option value> is exactly what `GET /vehicles?status=` expects, and there is no third
+// place for the two to disagree.
+const statusOptions = Object.keys(statusLabels) as VehicleStatus[];
 
 /**
  * Vehicles: the page you write.
@@ -99,8 +97,8 @@ export function VehiclesPage() {
           >
             <option value="">All</option>
             {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
+              <option key={option} value={option}>
+                {statusLabels[option]}
               </option>
             ))}
           </select>
@@ -125,10 +123,10 @@ export function VehiclesPage() {
               {data.items.map((vehicle) => (
                 <tr key={vehicle.id}>
                   <td>{vehicle.plate}</td>
-                  <td>{typeLabels[vehicle.type] ?? vehicle.type}</td>
+                  <td>{vehicle.type}</td>
                   <td>
-                    <span className={statusBadgeClass[vehicle.status] ?? 'badge'}>
-                      {statusLabels[vehicle.status] ?? vehicle.status}
+                    <span className={statusBadgeClass[vehicle.status]}>
+                      {statusLabels[vehicle.status]}
                     </span>
                   </td>
                   <td>{vehicle.odometerKm.toLocaleString()}</td>
