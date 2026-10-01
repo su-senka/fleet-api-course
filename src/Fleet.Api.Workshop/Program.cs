@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Fleet.Api.Workshop.Endpoints;
 using Fleet.Api.Workshop.Hosting;
 using Fleet.Common;
@@ -54,6 +55,16 @@ builder.Services.AddNotificationsModule(builder.Configuration);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
+
+// Enums as names, not numbers. "status": "InMaintenance" tells a reader what it means;
+// "status": 2 makes them go and find the enum. It also means a value read from a response can be
+// handed straight back as a query-string filter, which is what a client will try first.
+//
+// This matches Fleet.Api on :5100 deliberately. The two hosts serving the same resource in two
+// different shapes is not a lesson, it is a trap: the React course proxies to :5100 from its week
+// 2 onwards, and a client whose types were written against this host would quietly start lying.
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 // Register Fluent Validation validators
 builder.Services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton, includeInternalTypes: true);
