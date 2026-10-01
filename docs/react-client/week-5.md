@@ -14,8 +14,9 @@
     and keep src/api/clients/ as the hand-written layer on top. What this week is really
     teaching: the generated file is build output, not source - it is regenerated, never edited;
     a generation step that nobody runs is worse than no generation at all, so it needs an npm
-    script and a check that fails when the checked-in output is stale; and generated enums are
-    where the week-1 number-to-label argument gets settled one way or the other.
+    script and a check that fails when the checked-in output is stale; and the hand-written
+    VehicleType/VehicleStatus unions in contracts.ts become generated output, which is what
+    finally makes a fourth status a compile error rather than a surprise.
 
   Open decision for the course author
     Which generator (openapi-typescript for types only, versus a full client generator). Types

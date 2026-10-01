@@ -24,6 +24,10 @@ dotnet run --project src/Fleet.Api.Workshop          # your API from the other c
 cd src/Fleet.Web.Workshop/ClientApp && npm install && npm run dev   # the SPA, :5174
 ```
 
+**Node 22.22 or newer** is required, and `package.json` says so in `engines`. That floor is not
+ours: React Router 8 sets it, and Vite 8 wants a matching `@types/node`. On an older Node the
+install appears to succeed and the dev server fails later, which is a bad half-hour.
+
 Open <http://localhost:5174>. In week 1 that is all you need - Vite proxies `/api` straight to the
 API on `:5101`, and the BFF host is not in the picture yet.
 
@@ -53,6 +57,30 @@ week. The specification itself is the course author's to write, one week at a ti
 | 10 | Testing the client: Vitest, Testing Library and MSW | The four states, the validation mapping, the rollback - against real `fetch` | - |
 | 11 | Long-running work: 202, polling and cancellation | Polling that stops, backs off, and survives a reload | API 13 |
 | 12 | Shipping it: one origin, code splitting and caching | Serving the bundle from the BFF, cache headers, lazy routes, a look back | API 11, 14 |
+
+## What this arc deliberately leaves out
+
+Worth saying plainly, so nobody finishes the course thinking these do not exist.
+
+**React 19 form actions** - `<form action={fn}>`, `useActionState`, `useFormStatus`,
+`useOptimistic`. These are baseline React now and a 2026 codebase will contain them. We build
+weeks 3, 4 and 8 on `useMutation` instead, because form actions solve the half of the problem this
+course is about the *other* half of: they give you a pending state and a return value for one
+submission, and they do not model the fact that a successful `POST /vehicles` makes a cached
+`GET /vehicles?page=1` untrue. The current consensus is a split rather than a winner - the action
+owns the UI handshake, the data layer owns cache correctness - and this app has no server
+components to make the action half compelling. Week 3 states this where a student will meet it.
+
+**The React Compiler.** Stable since 1.0 and on by default in new Vite scaffolds. We take its lint
+rules (see the toolchain section) and leave the compiler off, so memoisation stays something you
+decide rather than something a build step does behind you.
+
+**TanStack Router.** React Router 8 in declarative mode is what the scaffold uses. TanStack Router
+has better type-safe routing and pairs naturally with TanStack Query; it is a defensible choice and
+would change weeks 1 and 2 substantially.
+
+If the arc ever grows a thirteenth week, the first three paragraphs above are what belongs in it.
+Week 12's look back is the other natural home.
 
 ## Running this alongside the API course
 
@@ -85,3 +113,75 @@ transform. That is the pattern the .NET and React communities converged on for e
 applications, and it is what `src/Fleet.Web.Workshop` is shaped like.
 
 The reference this scaffold was modelled on is `TaskTracker/src/TT.Web`, if you have it to hand.
+
+This is also, as of this writing, the pattern the OAuth working group itself recommends: the IETF
+draft *OAuth 2.0 for Browser-Based Applications* calls the token-mediating backend architecture
+"strongly recommended for business applications, sensitive applications, and applications that
+handle personal data". We are not being clever here; we are doing the ordinary thing.
+
+## The toolchain, and why these versions
+
+Worth reading once, because two of these pins are deliberate rather than merely current.
+
+| | Version | Note |
+|---|---|---|
+| .NET | `net10.0`, SDK `10.0.400` | .NET 10 is the current LTS |
+| YARP | `2.3.0` | current |
+| React | `19.3` | |
+| React Router | `8.4` | declarative mode; needs Node 22.22+ |
+| TanStack Query | `5.104` | v5 is still the current major |
+| Vite | `8.3` | Rolldown is the bundler from 8.0 on |
+| Vitest | `5.0` | |
+| ESLint | `10.11` | flat config |
+| `eslint-plugin-react-hooks` | `7.1` | see below |
+| TypeScript | `~5.9.3` | **pinned deliberately** - see below |
+
+**TypeScript is pinned to 5.9 on purpose.** The current release is TypeScript 7, the Go-native
+rewrite of the compiler, and it is genuinely much faster. We are not on it, because
+`typescript-eslint` declares a peer range of `typescript <6.1.0` and has no release that supports
+7: TypeScript 7.0 defers the programmatic Compiler API to 7.1, and type-aware linting is built on
+that API. Bumping TypeScript breaks `npm run lint`, which every week's reviewer checklist depends
+on, so the lint wins and the compiler waits.
+
+That trade is worth noticing rather than hiding. "Latest" and "adoptable" are different
+properties, and the thing that decides which you get is usually not the library you wanted to
+upgrade but something downstream of it.
+
+**`eslint-plugin-react-hooks` v7 is doing much more than it used to.** Its `recommended` preset
+carried two rules in v5 (`rules-of-hooks`, `exhaustive-deps`) and carries sixteen in v7. The new
+ones come out of the React Compiler's analysis, and they reject at lint time several things that
+used to be runtime bugs you had to reproduce - `set-state-in-effect`, `set-state-in-render`,
+`purity`, `immutability`. If the linter starts objecting to an effect you have written before and
+got away with, read the message; it is usually right.
+
+We take those rules **without** enabling the React Compiler itself. Memoisation stays manual, so
+`useMemo` and `useCallback` remain decisions you make and can measure, rather than something a
+build step quietly does for you. That is a teaching choice, not a recommendation against the
+compiler - a production codebase in 2026 would probably turn it on.
+
+## One wire-format fact, and why both hosts agree about it
+
+Enums travel as **names**, not numbers - `"type": "Van"`, `"status": "InMaintenance"` - because
+both hosts register `JsonStringEnumConverter`:
+
+| Talking to | `vehicle.type` on the wire |
+|---|---|
+| your own API, `:5101` (`Fleet.Api.Workshop`) | `"Van"` |
+| the reference API, `:5100` (`Fleet.Api`) | `"Van"` |
+
+That agreement is deliberate and it is load-bearing for this course. The client changes which host
+it talks to partway through the arc - week 1 proxies to `:5101`, week 2 onwards proxies to `:5100`
+through the BFF, and week 4 may point back at `:5101` again. If the two hosts disagreed about a
+field's shape, `src/api/contracts.ts` would be correct in week 1 and silently wrong from week 2,
+and the failure would hide rather than announce itself: a page that prints a raw value renders a
+string perfectly well, so only a status badge's colour would go missing.
+
+So the hosts match on purpose. Two hosts serving one resource in two shapes is not a lesson, it is
+a trap, and the course has better things to teach.
+
+What it is still worth noticing is the *kind* of guarantee you have here. `src/api/contracts.ts` is
+hand-written, so nothing tells it when the server adds a fourth `VehicleStatus`. Nothing is wrong
+today and nothing will warn you on the day it becomes wrong. That is the normal condition of a
+hand-written contract, and it is why week 5 replaces it with types generated from the OpenAPI
+document.
+

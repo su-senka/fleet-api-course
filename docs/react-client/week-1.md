@@ -35,7 +35,8 @@ In `src/Fleet.Web.Workshop/ClientApp`:
 
 - **The `Vehicle` contract**, in `src/api/contracts.ts`. It is already written for you - read it
   against a real response (`curl "http://localhost:5101/vehicles?page=1&pageSize=2"`) and satisfy
-  yourself it is honest, including that `type` and `status` come back as numbers.
+  yourself it is honest, including that `type` and `status` come back as the enum's own names
+  (`"Van"`, `"InMaintenance"`) rather than numbers.
 - **`VehiclesPage`** (`src/pages/VehiclesPage.tsx`), rendering one page of vehicles through
   `vehiclesApi.list()` from `src/api/clients/vehicles.ts`. It must render all four states:
   pending, error, empty, and the list. `DepotsPage` shows the shape; the error branch must display
@@ -46,8 +47,10 @@ In `src/Fleet.Web.Workshop/ClientApp`:
   `react-router` reads and writes it. Use the `hasNextPage` and `totalPages` the API already sends
   rather than deriving them from `totalCount` yourself - the server has already decided where the
   last page is, and a client that recalculates it will eventually disagree.
-- **A readable list.** `type` and `status` are numbers on the wire; a table showing `1` and `2` is
-  not finished. Map them to labels somewhere sensible and be ready to defend where.
+- **A readable list.** The wire values are names, not labels: a column showing `InMaintenance` is
+  closer than `2` was but still is not finished. Decide where the value-to-prose mapping lives,
+  and notice that `type` probably needs none at all while `status` does - which tells you the
+  mapping is about typography rather than translation.
 - **One sorted column or one filter** - `sort` and `status` are both understood by
   `GET /vehicles`; pick one. The point is that it goes in the query string next to `page`, and
   that changing it resets the page number, because page 7 of a different filter is meaningless.
@@ -63,8 +66,9 @@ A pull request from your own repository (created from the template), containing:
 
 - `VehiclesPage` with its four states, query-string paging, readable labels, and one sort or
   filter control.
-- A short PR description answering two questions. First: where did you put the number-to-label
-  mapping for `type` and `status`, and would you argue the API should have sent strings instead?
+- A short PR description answering two questions. First: where did you put the value-to-label
+  mapping, which of the two fields actually needed one, and what would break if you had instead
+  stored the label in the query string when filtering?
   Second: what is in your React Query `queryKey`, and what happens if the page number is left out
   of it?
 - Evidence it works: screenshots or recordings of at least four states - the list on page 1, the
